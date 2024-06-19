@@ -16,7 +16,7 @@ namespace Consul.Extensions.ContainerInspector.Configuration
         {
             LoadFromEnvironmentVariables(Environment.GetEnvironmentVariables());
 
-            // Note that the LoadFromEmvironmentVariables method can change the configuration path
+            // Note that the LoadFromEnvironmentVariables method can change the configuration path
             // by obtaining a new value from an environment variable. Additionally, the configuration
             // path can be a file or a folder. If it's a folder, we need to find all the .hcl files in
             // this folder and read them all.
