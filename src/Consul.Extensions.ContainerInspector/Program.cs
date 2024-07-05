@@ -1,4 +1,6 @@
 ﻿using Consul.Extensions.ContainerInspector.Configuration.Models;
+using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+using Consul.Extensions.ContainerInspector.Core.Extensions;
 using Consul.Extensions.ContainerInspector.Extensions;
 
 namespace Consul.Extensions.ContainerInspector
@@ -16,9 +18,8 @@ namespace Consul.Extensions.ContainerInspector
                 })
                 .ConfigureAppConfiguration((_, configurationBuilder) =>
                 {
-                    configurationBuilder.AddCommandLine(args);
-
                     configurationBuilder.AddConsulConfiguration();
+                    configurationBuilder.AddDockerConfiguration();
                     configurationBuilder.AddManagedInstanceRegistration();
                 });
 
@@ -34,6 +35,10 @@ namespace Consul.Extensions.ContainerInspector
             services.Configure<ManagedInstanceRegistration>(
                 context.Configuration.GetSection(
                     Extensions.ConfigurationExtensions.ManagedInstanceConfigurationSection));
+
+            services.Configure<DockerConfiguration>(
+                context.Configuration.GetSection(
+                    Core.Extensions.ConfigurationExtensions.DockerConfigurationSection));
 
             services.AddHostedService<BackgroundService>();
         }

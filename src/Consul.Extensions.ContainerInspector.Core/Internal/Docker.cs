@@ -1,24 +1,19 @@
-﻿using System.Net;
+﻿using Consul.Extensions.ContainerInspector.Core.Models;
+using System.Net;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Consul.Extensions.ContainerInspector.Internal
+namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
-    public class Docker(IHttpClientFactory clientFactory)
+    internal class Docker(IHttpClientFactory clientFactory) : IDocker
     {
-        public static readonly Version DockerVersion = new("1.43");
-
-        /// <summary>
-        /// Returns running containers and information needed to register services in Consul.
-        /// </summary>
-        /// <returns><see cref="Task{IEnumerable{DockerContainer}}" /> that completes with enumerate
-        /// of the container data that contain information for registering services in Consul.</returns>
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
             var dockerContainers = await GetAsync<IEnumerable<DockerContainerResponse>>(
-                $"/v{DockerVersion}/containers/json", cancellationToken);
+                $"/v{IDocker.DockerVersion}/containers/json", cancellationToken);
 
             // We will only return containers that are at least running. There is no need to return
             // stopped containers, since most likely the Consul does not have information about them,
@@ -26,35 +21,25 @@ namespace Consul.Extensions.ContainerInspector.Internal
             return (dockerContainers ?? []).Where(container => container.State == "running").Select(Convert);
         }
 
-        /// <summary>
-        /// Returns information about the container with the specified <paramref name="containerId"/>,
-        /// needed to register service in Consul.
-        /// </summary>
-        /// <returns><see cref="Task{DockerContainer?}" /> that completes with container data that
-        /// contain information for registering service in Consul.</returns>
         public async Task<DockerContainer?> GetContainerAsync(string containerId, CancellationToken cancellationToken)
         {
             // Compared to the GetContainersAsync method, this method returns information about
             // the container regardless of whether it is running.
             var dockerContainer = await GetAsync<DockerContainerDataResponse>(
-                $"/v{DockerVersion}/containers/{containerId}/json", cancellationToken);
+                $"/v{IDocker.DockerVersion}/containers/{containerId}/json", cancellationToken);
 
             return dockerContainer == default ? default : Convert(dockerContainer);
         }
 
-        /// <summary>
-        /// Monitors state change events for containers and the networks used by those containers.
-        /// </summary>
-        /// <returns>An infinite <see cref="IAsyncEnumerable{DockerContainerEvent}"/> of events that
-        /// can only be interrupted by <paramref name="cancellationToken"/>.</returns>
         public async IAsyncEnumerable<DockerContainerEvent> MonitorAsync(
             DateTime since, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            using var client = clientFactory.CreateClient(nameof(Docker));
-            using var responseMessage = await GetResponseMessageAsync(
-                client, $"/v{DockerVersion}/events?since={((DateTimeOffset)since).ToUnixTimeSeconds()}", cancellationToken);
+            var requestUri = $"/v{IDocker.DockerVersion}/events?since={((DateTimeOffset)since).ToUnixTimeSeconds()}";
 
+            using var client = clientFactory.CreateClient(nameof(Docker));
+            using var responseMessage = await GetResponseMessageAsync(client, requestUri, cancellationToken);
             responseMessage.EnsureSuccessStatusCode();
+
             using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
             using var contentStreamReader = new StreamReader(contentStream, new UTF8Encoding(false));
 
@@ -79,6 +64,16 @@ namespace Consul.Extensions.ContainerInspector.Internal
                     };
                 }
             }
+        }
+
+        /// <summary>
+        /// Connects to Docker using Unix socket and returns a <see cref="NetworkStream" />.
+        /// </summary>
+        public static async ValueTask<Stream> ConnectAsync(EndPoint socketEndpoint, CancellationToken cancellationToken)
+        {
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
+            await socket.ConnectAsync(socketEndpoint, cancellationToken).ConfigureAwait(false);
+            return new NetworkStream(socket, ownsSocket: false);
         }
 
         private async Task<T?> GetAsync<T>(string requestUri, CancellationToken cancellationToken)
