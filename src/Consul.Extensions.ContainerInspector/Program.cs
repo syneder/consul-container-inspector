@@ -18,6 +18,13 @@ namespace Consul.Extensions.ContainerInspector
                 })
                 .ConfigureAppConfiguration((_, configurationBuilder) =>
                 {
+                    configurationBuilder.AddEnvironmentVariables("INSPECTOR_");
+
+                    configurationBuilder.AddCommandLine(args, new Dictionary<string, string>
+                    {
+                        { "--consul:token", "consul:acl:tokens:agent" },
+                    });
+
                     configurationBuilder.AddConsulConfiguration();
                     configurationBuilder.AddDockerConfiguration();
                     configurationBuilder.AddManagedInstanceRegistration();
