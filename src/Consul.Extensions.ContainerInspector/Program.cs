@@ -1,5 +1,4 @@
 ﻿using Consul.Extensions.ContainerInspector.Configuration.Models;
-using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
 using Consul.Extensions.ContainerInspector.Core.Extensions;
 using Consul.Extensions.ContainerInspector.Extensions;
 
@@ -43,11 +42,9 @@ namespace Consul.Extensions.ContainerInspector
                 context.Configuration.GetSection(
                     Extensions.ConfigurationExtensions.ManagedInstanceConfigurationSection));
 
-            services.Configure<DockerConfiguration>(
-                context.Configuration.GetSection(
-                    Core.Extensions.ConfigurationExtensions.DockerConfigurationSection));
-
-            services.AddHostedService<BackgroundService>();
+            services
+                .AddDockerInspector(context.Configuration)
+                .AddHostedService<BackgroundService>();
         }
 
         private static void ConfigureLogging(ILoggingBuilder serviceLogging, string[] args)

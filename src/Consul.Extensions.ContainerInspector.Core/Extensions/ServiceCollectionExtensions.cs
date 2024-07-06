@@ -1,8 +1,11 @@
 ﻿using Consul.Extensions.ContainerInspector.Core;
 using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
 using Consul.Extensions.ContainerInspector.Core.Internal;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net.Sockets;
+
+using ConfigurationExtensions = Consul.Extensions.ContainerInspector.Core.Extensions.ConfigurationExtensions;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -17,7 +20,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <param name="services">The <see cref="IServiceCollection"/> to register with.</param>
         /// <returns>The <see cref="IServiceCollection"/>.</returns>
-        public static IServiceCollection AddDocker(this IServiceCollection services)
+        public static IServiceCollection AddDocker(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddHttpClient(nameof(Docker))
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
@@ -29,7 +32,17 @@ namespace Microsoft.Extensions.DependencyInjection
                 })
                 .ConfigureHttpClient(client => client.BaseAddress = new Uri("http://localhost"));
 
+            services.Configure<DockerConfiguration>(
+                configuration.GetSection(ConfigurationExtensions.DockerConfigurationSection));
+
             return services.AddTransient<IDocker, Docker>();
+        }
+
+        public static IServiceCollection AddDockerInspector(this IServiceCollection services, IConfiguration configuration)
+        {
+            return services
+                .AddDocker(configuration)
+                .AddTransient<IDockerInspector, DockerInspector>();
         }
 
         private static SocketsHttpHandler CreateMessageHandler(DockerConfiguration configuration)
