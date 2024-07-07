@@ -1,11 +1,16 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Models;
+﻿using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
-    internal class DockerInspector(IDocker docker, ILogger<DockerInspector>? inspectorLogger) : IDockerInspector
+    internal class DockerInspector(
+        IDocker docker,
+        IOptions<DockerInspectorConfiguration> options,
+        ILogger<DockerInspector>? inspectorLogger) : IDockerInspector
     {
         private static readonly IDictionary<string, DockerInspectorEventType> _inspectorEventTypeMap
             = new Dictionary<string, DockerInspectorEventType>
@@ -23,7 +28,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public IAsyncEnumerable<DockerInspectorEvent> InspectAsync(CancellationToken cancellationToken)
         {
-            return new Inspector(docker, inspectorLogger, cancellationToken).InspectAsync();
+            var configuration = options?.Value
+                ?? throw new InvalidOperationException("IOptions<DockerInspectorConfiguration> is not configured.");
+
+            return new Inspector(docker, inspectorLogger, configuration, cancellationToken).InspectAsync();
         }
 
         private static DockerInspectorEvent CreateInspectorDisposingEvent(string containerId)
@@ -38,12 +46,16 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         {
             private readonly IDocker _docker;
             private readonly ILogger<DockerInspector>? _inspectorLogger;
+            private readonly DockerInspectorConfiguration _configuration;
             private readonly CancellationToken _cancellationToken;
 
             private readonly Dictionary<string, ContainerDescriptor> _containerDescriptors = [];
 
             public Inspector(
-                IDocker docker, ILogger<DockerInspector>? inspectorLogger, CancellationToken cancellationToken)
+                IDocker docker,
+                ILogger<DockerInspector>? inspectorLogger,
+                DockerInspectorConfiguration configuration,
+                CancellationToken cancellationToken)
             {
                 _docker = docker;
                 _inspectorLogger = inspectorLogger;
@@ -144,7 +156,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         if (cachedDescriptor.Container.Networks.Except(container.Networks).Any())
                         {
                             yield return _containerDescriptors[container.Id].CreateInspectorEvent(
-                                DockerInspectorEventType.ContainerAddressesUpdated);
+                                DockerInspectorEventType.ContainerNetworksUpdated);
                         }
                     }
 
@@ -166,7 +178,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 var containersQueue = new Queue<DockerContainer>();
                 foreach (var container in containers)
                 {
-                    if (!container.Labels.TryGetValue("consul.inspector.service-name", out var serviceName))
+                    if (!container.Labels.TryGetValue(_configuration.Labels.ServiceLabel, out var serviceName))
                     {
                         containersQueue.Enqueue(container);
                         continue;

@@ -40,9 +40,12 @@ namespace Microsoft.Extensions.DependencyInjection
 
         public static IServiceCollection AddDockerInspector(this IServiceCollection services, IConfiguration configuration)
         {
-            return services
-                .AddDocker(configuration)
-                .AddTransient<IDockerInspector, DockerInspector>();
+            services.AddDocker(configuration);
+
+            services.Configure<DockerInspectorConfiguration>(
+                configuration.GetSection(ConfigurationExtensions.DockerInspectorConfigurationSection));
+
+            return services.AddTransient<IDockerInspector, DockerInspector>();
         }
 
         private static SocketsHttpHandler CreateMessageHandler(DockerConfiguration configuration)

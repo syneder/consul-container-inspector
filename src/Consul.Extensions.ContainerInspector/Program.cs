@@ -21,12 +21,14 @@ namespace Consul.Extensions.ContainerInspector
 
                     configurationBuilder.AddCommandLine(args, new Dictionary<string, string>
                     {
-                        { "--consul:token", "consul:acl:tokens:agent" },
+                        { "--consul:token", "consul:acl:tokens:agent" }
                     });
 
                     configurationBuilder.AddConsulConfiguration();
-                    configurationBuilder.AddDockerConfiguration();
                     configurationBuilder.AddManagedInstanceRegistration();
+
+                    configurationBuilder.AddDockerConfiguration();
+                    configurationBuilder.AddDockerInspectorConfiguration();
                 });
 
             return appBuilder.Build().RunAsync();

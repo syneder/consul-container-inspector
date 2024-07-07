@@ -2,7 +2,9 @@
 {
     public class ConsulConfigurationTokens
     {
-        [ConfigurationKeyName("agent")]
+        /// <summary>
+        /// Gets or sets the Consul Agent token to manage service registration.
+        /// </summary>
         public string? Agent { get; set; }
     }
 }

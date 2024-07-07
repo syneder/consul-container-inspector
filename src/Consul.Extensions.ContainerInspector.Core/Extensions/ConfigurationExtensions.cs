@@ -13,9 +13,20 @@ namespace Consul.Extensions.ContainerInspector.Core.Extensions
         /// </summary>
         public const string DockerConfigurationSection = "Docker";
 
+        /// <summary>
+        /// Default configuration section where the read Docker inspector configurations will be located.
+        /// </summary>
+        public const string DockerInspectorConfigurationSection = "Core";
+
         public static IConfigurationBuilder AddDockerConfiguration(this IConfigurationBuilder configurationBuilder)
         {
             return configurationBuilder.Add(new DockerConfigurationSource(DockerConfigurationSection));
+        }
+
+        public static IConfigurationBuilder AddDockerInspectorConfiguration(
+            this IConfigurationBuilder configurationBuilder)
+        {
+            return configurationBuilder.Add(new DockerConfigurationSource(DockerInspectorConfigurationSection));
         }
     }
 }

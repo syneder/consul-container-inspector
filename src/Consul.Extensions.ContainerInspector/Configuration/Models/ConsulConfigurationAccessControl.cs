@@ -2,7 +2,6 @@
 {
     public class ConsulConfigurationAccessControl
     {
-        [ConfigurationKeyName("tokens")]
         public ConsulConfigurationTokens? Tokens { get; set; }
     }
 }

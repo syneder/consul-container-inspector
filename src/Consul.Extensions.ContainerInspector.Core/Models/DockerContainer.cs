@@ -2,6 +2,9 @@
 
 namespace Consul.Extensions.ContainerInspector.Core.Models
 {
+    /// <summary>
+    /// Describes the Docker container.
+    /// </summary>
     public class DockerContainer
     {
         /// <summary>

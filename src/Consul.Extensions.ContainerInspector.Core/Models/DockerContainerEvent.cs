@@ -1,5 +1,8 @@
 ﻿namespace Consul.Extensions.ContainerInspector.Core.Models
 {
+    /// <summary>
+    /// Describes the Docker container event.
+    /// </summary>
     public class DockerContainerEvent
     {
         public required string EventAction { get; init; }

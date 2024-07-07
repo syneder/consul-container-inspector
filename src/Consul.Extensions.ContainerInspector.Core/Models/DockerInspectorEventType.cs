@@ -11,9 +11,9 @@
         ContainerDetected = 1,
 
         /// <summary>
-        /// The Docker inspector detected changes in the Docker container's IP addresses.
+        /// The Docker inspector detected changes in the Docker container's networks.
         /// </summary>
-        ContainerAddressesUpdated,
+        ContainerNetworksUpdated,
 
         /// <summary>
         /// The Docker inspector detected a Docker container pause event.

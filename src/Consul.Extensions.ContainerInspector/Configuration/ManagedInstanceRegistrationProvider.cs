@@ -49,6 +49,7 @@ namespace Consul.Extensions.ContainerInspector.Configuration
                     if (envName.Equals(RequireRegistrationEnvironmentName, StringComparison.OrdinalIgnoreCase))
                     {
                         _isRequired = true;
+                        return;
                     }
                 }
             }

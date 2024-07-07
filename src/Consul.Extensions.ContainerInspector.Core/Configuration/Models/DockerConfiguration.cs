@@ -1,5 +1,8 @@
 ﻿namespace Consul.Extensions.ContainerInspector.Core.Configuration.Models
 {
+    /// <summary>
+    /// Describes the Docker client configuration.
+    /// </summary>
     public class DockerConfiguration
     {
         /// <summary>
