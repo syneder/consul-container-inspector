@@ -3,14 +3,18 @@ using Microsoft.Extensions.Configuration;
 
 namespace Consul.Extensions.ContainerInspector.Core.Configuration
 {
-    public class DockerInspectorConfigurationProvider : ConfigurationProviderBase
+    /// <summary>
+    /// Provides Docker inspector configuration key/values from environment variables.
+    /// </summary>
+    public class DockerInspectorConfigurationProvider(string configurationSection) : BaseConfigurationProvider(configurationSection)
     {
-        public DockerInspectorConfigurationProvider(string configurationSection) : base(configurationSection)
+        protected override IDictionary<string, string> EnvsMapper => new Dictionary<string, string>
         {
-            EnvironmentVariablesMap.Add(
+            {
                 "DOCKER_CONTAINER_LABELS_SERVICE_NAME", ConfigurationPath.Combine(
                     nameof(DockerInspectorConfiguration.Labels),
-                    nameof(DockerInspectorLabelConfiguration.ServiceLabel)));
-        }
+                    nameof(DockerInspectorLabelConfiguration.ServiceLabel))
+            }
+        };
     }
 }

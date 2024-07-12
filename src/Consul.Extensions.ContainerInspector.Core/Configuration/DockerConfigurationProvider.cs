@@ -2,13 +2,15 @@
 
 namespace Consul.Extensions.ContainerInspector.Core.Configuration
 {
-    public class DockerConfigurationProvider : ConfigurationProviderBase
+    /// <summary>
+    /// Provides Docker configuration key/values from environment variables.
+    /// </summary>
+    public class DockerConfigurationProvider(string configurationSection) : BaseConfigurationProvider(configurationSection)
     {
-        public const string ConfigurationEnvironmentName = "DOCKER_SOCKET_PATH";
-
-        public DockerConfigurationProvider(string configurationSection) : base(configurationSection)
+        protected override IDictionary<string, string> EnvsMapper => new Dictionary<string, string>()
         {
-            EnvironmentVariablesMap.Add(ConfigurationEnvironmentName, nameof(DockerConfiguration.SocketPath));
-        }
+            { "DOCKER_SOCKET_PATH", nameof(DockerConfiguration.SocketPath) },
+            { "DOCKER_EXPECTED_CONTAINER_LABELS", $"[{nameof(DockerConfiguration.ExpectedLabels)}]" }
+        };
     }
 }

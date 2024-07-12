@@ -20,13 +20,25 @@ namespace Consul.Extensions.ContainerInspector.Core.Extensions
 
         public static IConfigurationBuilder AddDockerConfiguration(this IConfigurationBuilder configurationBuilder)
         {
-            return configurationBuilder.Add(new DockerConfigurationSource(DockerConfigurationSection));
+            return configurationBuilder.AddConfigurationProvider(
+                () => new DockerConfigurationProvider(DockerConfigurationSection));
         }
 
-        public static IConfigurationBuilder AddDockerInspectorConfiguration(
-            this IConfigurationBuilder configurationBuilder)
+        public static IConfigurationBuilder AddDockerInspectorConfiguration(this IConfigurationBuilder configurationBuilder)
         {
-            return configurationBuilder.Add(new DockerConfigurationSource(DockerInspectorConfigurationSection));
+            return configurationBuilder.AddConfigurationProvider(
+                () => new DockerInspectorConfigurationProvider(DockerInspectorConfigurationSection));
+        }
+
+        public static IConfigurationBuilder AddConfigurationProvider(
+            this IConfigurationBuilder configurationBuilder, Func<IConfigurationProvider> providerFactory)
+        {
+            return configurationBuilder.Add(new ConfigurationSource(providerFactory));
+        }
+
+        private class ConfigurationSource(Func<IConfigurationProvider> providerFactory) : IConfigurationSource
+        {
+            public IConfigurationProvider Build(IConfigurationBuilder builder) => providerFactory();
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Consul.Extensions.ContainerInspector.Configuration;
+using Consul.Extensions.ContainerInspector.Core.Extensions;
 
 namespace Consul.Extensions.ContainerInspector.Extensions
 {
@@ -35,8 +36,8 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         /// <returns>The <see cref="IConfigurationBuilder"/>.</returns>
         public static IConfigurationBuilder AddConsulConfiguration(this IConfigurationBuilder configurationBuilder)
         {
-            return configurationBuilder.Add(
-                new ConsulConfigurationSource(ConsulConfigurationFilePath, ConsulConfigurationSection));
+            return configurationBuilder.AddConfigurationProvider(
+                () => new ConsulConfigurationProvider(ConsulConfigurationFilePath, ConsulConfigurationSection));
         }
 
         /// <summary>
@@ -47,8 +48,8 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         /// <returns>The <see cref="IConfigurationBuilder"/>.</returns>
         public static IConfigurationBuilder AddManagedInstanceRegistration(this IConfigurationBuilder configurationBuilder)
         {
-            return configurationBuilder.Add(
-                new ManagedInstanceRegistrationSource(
+            return configurationBuilder.AddConfigurationProvider(
+                () => new ManagedInstanceRegistrationProvider(
                     ManagedInstanceRegistrationFilePath, ManagedInstanceConfigurationSection));
         }
     }
