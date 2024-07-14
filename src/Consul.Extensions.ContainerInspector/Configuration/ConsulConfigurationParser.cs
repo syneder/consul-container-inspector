@@ -57,8 +57,16 @@ namespace Consul.Extensions.ContainerInspector.Configuration
                         case '=':
                             if (visitedTokens.TryPop(out var name) && contentTokensEnumerator.MoveNext())
                             {
-                                var configurationPath = ConfigurationPath.Combine(visitedSections.Append(name));
-                                data.TryAdd(configurationPath, contentTokensEnumerator.Current);
+                                currentToken = contentTokensEnumerator.Current;
+                                if (currentToken.Length == 1 && currentToken[0] == '{')
+                                {
+                                    visitedTokens.Push(name);
+                                    visitedSections.Push(name);
+                                    continue;
+                                }
+
+                                var configurationPath = ConfigurationPath.Combine(visitedSections.Reverse().Append(name));
+                                data.TryAdd(configurationPath, currentToken);
                             }
 
                             continue;
