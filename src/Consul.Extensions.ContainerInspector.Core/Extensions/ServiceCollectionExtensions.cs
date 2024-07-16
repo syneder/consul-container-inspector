@@ -4,9 +4,10 @@ using Consul.Extensions.ContainerInspector.Core.Internal;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using System.Net;
 using System.Net.Sockets;
-
 using ConfigurationExtensions = Consul.Extensions.ContainerInspector.Core.Extensions.ConfigurationExtensions;
+using Core = Consul.Extensions.ContainerInspector.Core;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -23,7 +24,11 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <returns>The <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection AddDocker(this IServiceCollection services, IConfiguration configuration)
         {
-            services.ConfigureDockerHttpClient();
+            services.ConfigureHttpClient(nameof(IDocker)).ConfigurePrimaryHttpMessageHandler(serviceProvider =>
+            {
+                var options = serviceProvider.GetRequiredService<IOptions<DockerConfiguration>>();
+                return CreateSocketHttpHandler(new UnixDomainSocketEndPoint(options.Value.SocketPath));
+            });
 
             services.Configure<DockerConfiguration>(
                 configuration.GetSection(ConfigurationExtensions.DockerConfigurationSection));
@@ -32,6 +37,32 @@ namespace Microsoft.Extensions.DependencyInjection
             return services;
         }
 
+        /// <summary>
+        /// Registers the Consul client and the configuration to create an <see cref="HttpClient" />
+        /// by <see cref="IHttpClientFactory"/>, that connects to Consul using Unix socket.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> to register with.</param>
+        /// <returns>The <see cref="IServiceCollection"/>.</returns>
+        public static IServiceCollection AddConsul(this IServiceCollection services, IConfiguration configuration)
+        {
+            services.ConfigureHttpClient(nameof(IConsul)).ConfigurePrimaryHttpMessageHandler(serviceProvider =>
+            {
+                var options = serviceProvider.GetRequiredService<IOptions<ConsulConfiguration>>();
+                return CreateSocketHttpHandler(new UnixDomainSocketEndPoint(options.Value.SocketPath));
+            });
+
+            services.Configure<ConsulConfiguration>(
+                configuration.GetSection(ConfigurationExtensions.ConsulConfigurationSection));
+
+            services.TryAddTransient<IConsul, Core.Internal.Consul>();
+            return services;
+        }
+
+        /// <summary>
+        /// Registers the Docker inspector and its configuration.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/> to register with.</param>
+        /// <returns>The <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection AddDockerInspector(this IServiceCollection services, IConfiguration configuration)
         {
             services.AddDocker(configuration);
@@ -43,23 +74,23 @@ namespace Microsoft.Extensions.DependencyInjection
             return services;
         }
 
-        private static IHttpClientBuilder ConfigureDockerHttpClient(this IServiceCollection services)
+        private static IHttpClientBuilder ConfigureHttpClient(this IServiceCollection services, string name)
         {
-            return services.AddHttpClient(nameof(IDocker))
-                .ConfigureHttpClient(client => client.BaseAddress = new Uri("http://localhost"))
-                .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
-                {
-                    var configuration = serviceProvider.GetRequiredService<IOptions<DockerConfiguration>>().Value;
+            return services.AddHttpClient(name).ConfigureHttpClient(client =>
+            {
+                client.BaseAddress = new Uri("http://localhost");
+            });
+        }
 
-                    return new SocketsHttpHandler
-                    {
-                        ConnectCallback = (_, cancellationToken) =>
-                        {
-                            var endpoint = new UnixDomainSocketEndPoint(configuration.SocketPath);
-                            return Docker.ConnectAsync(endpoint, cancellationToken);
-                        }
-                    };
-                });
+        private static SocketsHttpHandler CreateSocketHttpHandler(EndPoint socketEndpoint)
+        {
+            return new SocketsHttpHandler
+            {
+                ConnectCallback = (_, cancellationToken) =>
+                {
+                    return Docker.ConnectAsync(socketEndpoint, cancellationToken);
+                }
+            };
         }
     }
 }

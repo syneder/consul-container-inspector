@@ -1,8 +1,9 @@
-﻿using System.Buffers;
+﻿using Microsoft.Extensions.Configuration;
+using System.Buffers;
 using System.Collections;
 using System.Text;
 
-namespace Consul.Extensions.ContainerInspector.Configuration
+namespace Consul.Extensions.ContainerInspector.Core.Configuration
 {
     public class ConsulConfigurationProvider(string configurationFilePath, string configurationSection) : ConfigurationProvider
     {

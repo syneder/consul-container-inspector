@@ -1,4 +1,4 @@
-﻿namespace Consul.Extensions.ContainerInspector.Configuration.Models
+﻿namespace Consul.Extensions.ContainerInspector.Core.Configuration.Models
 {
     public class ConsulConfigurationAccessControl
     {

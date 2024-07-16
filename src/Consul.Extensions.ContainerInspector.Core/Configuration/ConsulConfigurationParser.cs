@@ -1,6 +1,7 @@
-﻿using System.Text;
+﻿using Microsoft.Extensions.Configuration;
+using System.Text;
 
-namespace Consul.Extensions.ContainerInspector.Configuration
+namespace Consul.Extensions.ContainerInspector.Core.Configuration
 {
     /// <summary>
     /// Parses and represents the Consul configuration as an <see cref="IDictionary{string, string?}"/>.
