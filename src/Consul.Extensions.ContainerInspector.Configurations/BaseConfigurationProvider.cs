@@ -64,7 +64,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations
             return default;
         }
 
-        protected bool TryAdd(string configurationPath, string value)
+        protected bool TryAdd(string configurationPath, string? value)
         {
             // Ignore duplicate environment variable names and return true to increase the
             // number of successful additions to abort further searches after all matches have

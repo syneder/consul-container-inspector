@@ -12,7 +12,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations
         protected override IDictionary<string, string> EnvsMapper => new Dictionary<string, string>
         {
             { ConfigurationFilePathEnvironmentName, string.Empty },
-            { ConfigurationEnvironmentName, string.Empty }
+            { ConfigurationEnvironmentName, string.Empty },
         };
 
         /// <summary>

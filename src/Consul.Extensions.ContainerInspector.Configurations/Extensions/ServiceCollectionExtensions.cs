@@ -27,6 +27,9 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddOptions<DockerInspectorConfiguration>()
                 .BindConfiguration(ConfigurationBuilderExtensions.DockerInspectorConfigurationSection);
 
+            services.AddOptions<ManagedInstanceRegistration>()
+                .BindConfiguration(ConfigurationBuilderExtensions.ManagedInstanceConfigurationSection);
+
             services.PostConfigure<ConsulConfiguration>(configuration =>
             {
                 var addressBinding = configuration.AddressBinding;
@@ -41,6 +44,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.TryAddSingleton(GetRequiredOptions<ConsulConfiguration>);
             services.TryAddSingleton(GetRequiredOptions<DockerConfiguration>);
             services.TryAddSingleton(GetRequiredOptions<DockerInspectorConfiguration>);
+            services.TryAddSingleton(GetRequiredOptions<ManagedInstanceRegistration>);
 
             return services;
         }

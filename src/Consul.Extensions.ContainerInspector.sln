@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Consul.Extensions.Container
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Consul.Extensions.ContainerInspector.Core", "Consul.Extensions.ContainerInspector.Core\Consul.Extensions.ContainerInspector.Core.csproj", "{BFB7C1BC-D6DA-4EB8-985A-BA6421FD4A48}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Consul.Extensions.ContainerInspector.Configurations", "Consul.Extensions.ContainerInspector.Configurations\Consul.Extensions.ContainerInspector.Configurations.csproj", "{603F71A2-B45C-4E91-A7F3-BDE4AFC14E15}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{BFB7C1BC-D6DA-4EB8-985A-BA6421FD4A48}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BFB7C1BC-D6DA-4EB8-985A-BA6421FD4A48}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BFB7C1BC-D6DA-4EB8-985A-BA6421FD4A48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{603F71A2-B45C-4E91-A7F3-BDE4AFC14E15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{603F71A2-B45C-4E91-A7F3-BDE4AFC14E15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{603F71A2-B45C-4E91-A7F3-BDE4AFC14E15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{603F71A2-B45C-4E91-A7F3-BDE4AFC14E15}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

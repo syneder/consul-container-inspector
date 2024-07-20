@@ -10,7 +10,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations
         protected override IDictionary<string, string> EnvsMapper => new Dictionary<string, string>()
         {
             { "DOCKER_SOCKET_PATH", nameof(DockerConfiguration.SocketPath) },
-            { "DOCKER_EXPECTED_CONTAINER_LABELS", $"[{nameof(DockerConfiguration.ExpectedLabels)}]" }
+            { "DOCKER_EXPECTED_CONTAINER_LABELS", $"[{nameof(DockerConfiguration.ExpectedLabels)}]" },
         };
     }
 }

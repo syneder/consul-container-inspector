@@ -29,7 +29,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations
                 "DOCKER_CONTAINER_LABELS_SERVICE_HEALTH_TIMEOUT_NAME", ConfigurationPath.Combine(
                     nameof(DockerInspectorConfiguration.Labels),
                     nameof(DockerInspectorConfiguration.LabelConfiguration.ServiceHealthTimeoutLabel))
-            }
+            },
         };
     }
 }
