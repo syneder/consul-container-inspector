@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System.Collections;
 
-namespace Consul.Extensions.ContainerInspector.Core.Configuration
+namespace Consul.Extensions.ContainerInspector.Configurations
 {
     /// <summary>
     /// Base class for implementing <see cref="IConfigurationProvider"/> using an environment variables mapper.

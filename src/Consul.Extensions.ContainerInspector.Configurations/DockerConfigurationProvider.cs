@@ -1,6 +1,6 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 
-namespace Consul.Extensions.ContainerInspector.Core.Configuration
+namespace Consul.Extensions.ContainerInspector.Configurations
 {
     /// <summary>
     /// Provides Docker configuration key/values from environment variables.

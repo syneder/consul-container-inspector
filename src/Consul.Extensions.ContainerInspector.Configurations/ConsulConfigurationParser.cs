@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using System.Text;
 
-namespace Consul.Extensions.ContainerInspector.Core.Configuration
+namespace Consul.Extensions.ContainerInspector.Configurations
 {
     /// <summary>
     /// Parses and represents the Consul configuration as an <see cref="IDictionary{string, string?}"/>.
@@ -21,14 +21,14 @@ namespace Consul.Extensions.ContainerInspector.Core.Configuration
         /// Parses the Consul configuration passed to the stream reader and returns it in key-value format.
         /// </summary>
         /// <returns>Consul configuration as an <see cref="IDictionary{string, string?}"/>.</returns>
-        public IDictionary<string, string?> Parse()
+        public IDictionary<string, string> Parse()
         {
             var contentTokens = GetTokens();
             Tokens = [.. contentTokens];
 
             var visitedTokens = new Stack<string>();
             var visitedSections = new Stack<string>();
-            var data = new Dictionary<string, string?>();
+            var data = new Dictionary<string, string>();
 
             var contentTokensEnumerator = contentTokens.GetEnumerator();
             while (contentTokensEnumerator.MoveNext())
