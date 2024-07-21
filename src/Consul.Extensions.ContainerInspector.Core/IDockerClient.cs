@@ -2,7 +2,7 @@
 
 namespace Consul.Extensions.ContainerInspector.Core
 {
-    public interface IDocker
+    public interface IDockerClient
     {
         public static readonly Version DockerVersion = new("1.43");
 
@@ -14,7 +14,7 @@ namespace Consul.Extensions.ContainerInspector.Core
         Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken);
 
         /// <summary>
-        /// Returns information about the container with the specified <paramref name="containerId"/>,
+        /// Returns information about the container with the specified <paramref name="containerId" />,
         /// needed to register service in Consul.
         /// </summary>
         /// <returns><see cref="Task{DockerContainer?}" /> that completes with container data that
@@ -24,8 +24,8 @@ namespace Consul.Extensions.ContainerInspector.Core
         /// <summary>
         /// Monitors state change events for containers and the networks used by those containers.
         /// </summary>
-        /// <returns>An infinite <see cref="IAsyncEnumerable{DockerContainerEvent}"/> of events that
-        /// can only be interrupted by <paramref name="cancellationToken"/>.</returns>
+        /// <returns>An infinite <see cref="IAsyncEnumerable{DockerContainerEvent}" /> of events that
+        /// can only be interrupted by <paramref name="cancellationToken" />.</returns>
         IAsyncEnumerable<DockerContainerEvent> MonitorAsync(DateTime since, CancellationToken cancellationToken);
     }
 }

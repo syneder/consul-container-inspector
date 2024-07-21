@@ -1,18 +1,18 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using System.Diagnostics;
-
-using LoggerExtensions = Consul.Extensions.ContainerInspector.Extensions.LoggerExtensions;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
+    /// <summary>
+    /// Default implementation of <see cref="IDockerInspector" />.
+    /// </summary>
     internal class DockerInspector(
-        ILogger<IDockerInspector>? inspectorLogger,
-        IOptions<DockerInspectorConfiguration> options,
-        IDocker docker) : IDockerInspector
+        DockerInspectorConfiguration configuration,
+        IDockerClient docker,
+        IAmazonClient aws,
+        ILogger<IDockerInspector>? inspectorLogger) : IDockerInspector
     {
         private static readonly IDictionary<string, DockerInspectorEventType> _inspectorEventTypeMap
             = new Dictionary<string, DockerInspectorEventType>
@@ -26,11 +26,15 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         private static readonly HashSet<string> _supportedActions
             = new(_inspectorEventTypeMap.Keys.Union(["connect", "disconnect"]));
 
-        public const string ResourceArnLabel = "com.amazonaws.ecs.task-arn";
+        /// <summary>
+        /// The name of the Docker container label containing the ARN of the task that manages
+        /// the specific Docker container.
+        /// </summary>
+        public const string TaskArnLabel = "com.amazonaws.ecs.task-arn";
 
         public IAsyncEnumerable<DockerInspectorEvent> InspectAsync(CancellationToken cancellationToken)
         {
-            return new Inspector(docker, inspectorLogger, options.Value, cancellationToken).InspectAsync();
+            return new Inspector(configuration, docker, aws, inspectorLogger, cancellationToken).InspectAsync();
         }
 
         private static DockerInspectorEvent CreateInspectorDisposingEvent(string containerId)
@@ -43,22 +47,24 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         private class Inspector
         {
-            private readonly IDocker _docker;
-            private readonly ILogger<IDockerInspector>? _inspectorLogger;
             private readonly DockerInspectorConfiguration _configuration;
+            private readonly IDockerClient _docker;
+            private readonly IAmazonClient _aws;
+            private readonly ILogger<IDockerInspector>? _inspectorLogger;
             private readonly CancellationToken _cancellationToken;
-
             private readonly Dictionary<string, ContainerDescriptor> _containerDescriptors = [];
 
             public Inspector(
-                IDocker docker,
-                ILogger<IDockerInspector>? inspectorLogger,
                 DockerInspectorConfiguration configuration,
+                IDockerClient docker,
+                IAmazonClient aws,
+                ILogger<IDockerInspector>? inspectorLogger,
                 CancellationToken cancellationToken)
             {
-                _docker = docker;
-                _inspectorLogger = inspectorLogger;
                 _configuration = configuration;
+                _docker = docker;
+                _aws = aws;
+                _inspectorLogger = inspectorLogger;
                 _cancellationToken = cancellationToken;
             }
 
@@ -72,9 +78,12 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 var containers = await _docker.GetContainersAsync(_cancellationToken);
                 await foreach (var containerDescriptor in InspectContainersAsync(containers.ToArray()))
                 {
+                    _inspectorLogger?.DockerInspectorDetectedDockerContainer(
+                        containerDescriptor.Container, containerDescriptor.ServiceName);
+
                     if (containerDescriptor.ServiceName?.Length > 0)
                     {
-                        _inspectorLogger?.ServiceNameDefined(
+                        _inspectorLogger?.DockerInspectorDetectedDockerContainer(
                             containerDescriptor.Container.Id, containerDescriptor.ServiceName);
 
                         yield return containerDescriptor.CreateInspectorEvent(
@@ -93,7 +102,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 {
                     if (!_supportedActions.Contains(containerEvent.EventAction))
                     {
-                        _inspectorLogger?.DockerEventIgnored(
+                        _inspectorLogger?.DockerReturnedNotSupportedEvent(
                             containerEvent.EventType, containerEvent.EventAction, containerEvent.ContainerId);
 
                         continue;
@@ -114,6 +123,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 ContainerDescriptor? descriptor = default;
                 if (!_containerDescriptors.TryGetValue(containerEvent.ContainerId, out var cachedDescriptor))
                 {
+                    _inspectorLogger?.DockerContainerDescriptorNotFoundInCache(containerEvent.ContainerId);
+
                     if (containerEvent.EventAction == "die")
                     {
                         _inspectorLogger?.CannotInspectDisposedDockerContainer(containerEvent.ContainerId);
@@ -134,7 +145,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     descriptor = await InspectContainerAsync(container);
                     if ((_containerDescriptors[container.Id] = descriptor).ServiceName?.Length > 0)
                     {
-                        _inspectorLogger?.ServiceNameDefined(container.Id, descriptor.ServiceName!);
+                        _inspectorLogger?.DockerInspectorDefinedServiceName(container.Id, descriptor.ServiceName!);
 
                         yield return descriptor.CreateInspectorEvent(DockerInspectorEventType.ContainerDetected);
                     }
@@ -162,14 +173,12 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         {
                             if (_inspectorLogger?.IsEnabled(LogLevel.Trace) ?? default)
                             {
-                                _inspectorLogger!.DetectedNetworkChanges(
-                                    container.Id,
-                                    LoggerExtensions.SerializeContainerNetworks(cachedDescriptor.Container),
-                                    LoggerExtensions.SerializeContainerNetworks(container));
+                                _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
+                                    container.Id, container, cachedDescriptor.Container);
                             }
                             else
                             {
-                                _inspectorLogger?.DetectedNetworkChanges(container.Id);
+                                _inspectorLogger?.DockerContainerNetworkConfigurationChanged(container.Id);
                             }
 
                             yield return _containerDescriptors[container.Id].CreateInspectorEvent(
@@ -180,10 +189,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     yield break;
                 }
 
-                Debug.Assert(!(descriptor == default && cachedDescriptor == default));
-
-                yield return (descriptor ?? cachedDescriptor)!.CreateInspectorEvent(
-                    _inspectorEventTypeMap[containerEvent.EventAction]);
+                if ((descriptor ??= cachedDescriptor)!.ServiceName?.Length > 0)
+                {
+                    yield return descriptor!.CreateInspectorEvent(_inspectorEventTypeMap[containerEvent.EventAction]);
+                }
             }
 
             private async IAsyncEnumerable<ContainerDescriptor> InspectContainersAsync(DockerContainer[] containers)
@@ -201,49 +210,63 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         continue;
                     }
 
-                    _inspectorLogger?.DetectedServiceLabel(
+                    _inspectorLogger?.DockerInspectorDefinedServiceName(
                         container.Id, _configuration.Labels.ServiceLabel, serviceName);
 
                     yield return new ContainerDescriptor(container, serviceName, default);
                 }
 
-                var resourceArns = new Dictionary<string, ContainerDescriptor>();
+                var arns = new Dictionary<string, ContainerDescriptor>();
                 while (containersQueue.TryDequeue(out var container))
                 {
                     try
                     {
-                        var resourceArn = ResourceArn.GetResourceArn(container);
-                        if (resourceArn == default)
+                        var parsedArn = TaskArn.GetTaskArn(container);
+                        if (parsedArn == default)
                         {
                             continue;
                         }
 
-                        if (resourceArns.ContainsKey(resourceArn.Arn))
+                        if (arns.ContainsKey(parsedArn.Arn))
                         {
-                            _inspectorLogger?.DuplicateResourceArn(resourceArn.Arn);
+                            _inspectorLogger?.DockerInspectorDetectedDuplicateTaskArn(parsedArn.Arn);
                             continue;
                         }
 
-                        _inspectorLogger?.DetectedResourceArn(container.Id, resourceArn.Arn);
-                        resourceArns.Add(resourceArn.Arn, new ContainerDescriptor(container, default, resourceArn));
+                        _inspectorLogger?.DockerInspectorDetectedTaskArn(container.Id, parsedArn.Arn);
+                        arns.Add(parsedArn.Arn, new ContainerDescriptor(container, default, parsedArn));
                     }
-                    catch (ResourceArnException)
+                    catch (TaskArnException)
                     {
-                        _inspectorLogger?.ResourceArnInvalid(container.Id);
+                        _inspectorLogger?.CannotParseTaskArn(container.Id);
                     }
                 }
 
-                // To reduce the number of API requests to AWS, group the found resource ARNs by
-                // region and then by cluster. In a standard configuration, only one group will exist,
-                // since the same container instance can only be connected to one cluster. But this
-                // rule can be broken by using a certain configuration.
-                foreach (var regionGroup in resourceArns.Values.GroupBy(descriptor => descriptor.ResourceArn!.Region))
+                // Before sending a request to AWS, we must ensure that the credentials can be
+                // retrieved. If the AWS client cannot find a way to obtain the credentials, it
+                // will return null. In this case, it is not possible to query AWS to obtain the
+                // ECS service name based on the ARN of the running task.
+                if (await _aws.GetCredentialsAsync(_cancellationToken) == default)
                 {
-                    foreach (var clusterGroup in regionGroup.GroupBy(descriptor => descriptor.ResourceArn!.Cluster))
+                    yield break;
+                }
+
+                foreach (var describedTask in await _aws.DescribeTasksAsync(arns.Keys, _cancellationToken))
+                {
+                    if (arns.TryGetValue(describedTask.Arn, out var containerDescriptor))
                     {
-                        // TODO: Add request to AWS
-                        // Cluster = clusterGroup.Key,
-                        // Tasks = clusterGroup.Select(descriptor => descriptor.ResourceArn!.Arn)
+                        _inspectorLogger?.DockerInspectorDefinedServiceName(
+                            containerDescriptor.Container.Id, describedTask);
+
+                        yield return new ContainerDescriptor(
+                            containerDescriptor.Container, describedTask.Group, containerDescriptor.TaskArn);
+                    }
+                    else
+                    {
+                        // The AWS client never returns tasks with an ARN that not requested.
+                        // Therefore this code should not be reached.
+                        throw new InvalidOperationException(
+                            "The AWS client returned ECS task with an ARN that was not requested.");
                     }
                 }
             }
@@ -259,7 +282,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             }
         }
 
-        private record ContainerDescriptor(DockerContainer Container, string? ServiceName, ResourceArn? ResourceArn)
+        private record ContainerDescriptor(DockerContainer Container, string? ServiceName, TaskArn? TaskArn)
         {
             public DockerInspectorEvent CreateInspectorEvent(DockerInspectorEventType eventType)
             {
@@ -271,11 +294,11 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             }
         }
 
-        private record ResourceArn(string Arn, string ResourceId, string Region, string Cluster)
+        private record TaskArn(string Arn, string ResourceId, string Region, string Cluster)
         {
-            public static ResourceArn? GetResourceArn(DockerContainer container)
+            public static TaskArn? GetTaskArn(DockerContainer container)
             {
-                if (!container.Labels.TryGetValue(ResourceArnLabel, out var resourceArn))
+                if (!container.Labels.TryGetValue(TaskArnLabel, out var arn))
                 {
                     return default;
                 }
@@ -283,16 +306,16 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 // In the current implementation, ARN creation is only allowed for ECS tasks. The ARN
                 // has the following format, but not all components of the ARN are required and will be
                 // available once created: arn:{partition}:{service}:{region}:{account-id}:ecs/{cluster}/{resourceId}
-                if (resourceArn.Split(':') is [_, _, _, var region, _, var resource] &&
+                if (arn.Split(':') is [_, _, _, var region, _, var resource] &&
                     resource.Split('/') is [_, var cluster, var resourceId])
                 {
-                    return new ResourceArn(resourceArn, resourceId, region, cluster);
+                    return new TaskArn(arn, resourceId, region, cluster);
                 }
 
-                throw new ResourceArnException();
+                throw new TaskArnException();
             }
         }
 
-        private class ResourceArnException : Exception { }
+        private class TaskArnException : Exception { }
     }
 }

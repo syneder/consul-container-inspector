@@ -8,7 +8,7 @@
         /// <summary>
         /// Gets or sets the Docker unix socket path.
         /// </summary>
-        public string SocketPath { get; set; } = "/var/run/docker.sock";
+        public string? SocketPath { get; set; }
 
         /// <summary>
         /// Gets or sets the labels that should be contained in containers returned by the Docker client.

@@ -1,10 +1,8 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Net;
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -14,26 +12,33 @@ using System.Web;
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
     /// <summary>
-    /// Default implementation of <see cref="IDocker" />.
+    /// Default implementation of <see cref="IDockerClient" />.
     /// </summary>
-    internal class Docker(
-        ILogger<IDocker>? dockerLogger,
-        IOptions<DockerConfiguration> options,
-        IHttpClientFactory clientFactory) : IDocker
+    internal class DockerClient(
+        IHttpClientFactory clientFactory,
+        DockerConfiguration configuration,
+        ILogger<IDockerClient>? clientLogger) : IDockerClient
     {
         private static readonly string[] _supportedEventTypes = ["container", "network"];
-        private static readonly string _baseRequestUri = $"/v{IDocker.DockerVersion}";
+        private static readonly string _baseRequestUri = $"/v{IDockerClient.DockerVersion}";
 
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
-            var containerFilters = new Dictionary<string, string[]?> { { "label", options.Value.ExpectedLabels } };
-            var containers = await GetAsync<IEnumerable<DockerContainerResponse>>(
+            var containerFilters = new Dictionary<string, string[]?> { { "label", configuration.ExpectedLabels } };
+            var containers = await GetAsync<ICollection<DockerContainerResponse>>(
                 "containers/json", containerFilters, cancellationToken);
 
-            // We will only return containers that are at least running. There is no need to return
-            // stopped containers, since most likely the Consul does not have information about them,
-            // or if there is any, it will be deleted after the inspector determines this.
-            return (containers ?? []).Where(container => container.State == "running").Select(Convert);
+            if (containers?.Count > 0)
+            {
+                clientLogger?.DockerReturnedContainers(containers.Count);
+
+                // We will only return containers that are at least running. There is no need to return
+                // stopped containers, since most likely the Consul does not have information about them,
+                // or if there is any, it will be deleted after the inspector determines this.
+                return containers.Where(container => container.State == "running").Select(Convert);
+            }
+
+            return [];
         }
 
         public async Task<DockerContainer?> GetContainerAsync(string containerId, CancellationToken cancellationToken)
@@ -45,16 +50,21 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             var container = await GetAsync<DockerContainerDataResponse>(resourceUri, default, cancellationToken);
             if (container == default)
             {
-                dockerLogger?.DockerContainerNotFound(containerId);
+                clientLogger?.DockerContainerNotFound(containerId);
                 return default;
             }
 
             var containerLabels = container.Configuration.Labels;
-            foreach (var data in (options.Value.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
+            if (containerLabels.Count > 0)
+            {
+                clientLogger?.DockerContainerContainsLabels(containerId, containerLabels);
+            }
+
+            foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
             {
                 if (!containerLabels.TryGetValue(data[0], out string? value))
                 {
-                    dockerLogger?.DockerContainerExpectedLabelMissing(containerId, data[0]);
+                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0]);
                     return default;
                 }
 
@@ -63,7 +73,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 // check whether the value of the container's label matches the expected value.
                 if (data.Length == 2 && data[1] != value)
                 {
-                    dockerLogger?.DockerContainerExpectedLabelMissing(containerId, data[0], data[1]);
+                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0], data[1]);
                     return default;
                 }
             }
@@ -78,11 +88,13 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             var resourceFilters = new Dictionary<string, string[]?>()
             {
                 { "type", _supportedEventTypes },
-                { "label", options.Value.ExpectedLabels }
+                { "label", configuration.ExpectedLabels }
             };
 
-            using var requestClient = clientFactory.CreateClient(nameof(IDocker));
+            using var requestClient = clientFactory.CreateClient(nameof(IDockerClient));
             using var requestMessage = CreateRequestMessage(resourceUri, resourceFilters);
+            clientLogger?.DockerRequestMessageCreated(requestMessage.RequestUri);
+
             using var responseMessage = await requestClient.SendAsync(
                 requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
@@ -103,7 +115,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 var response = JsonSerializer.Deserialize<DockerEventResponse>(responseContent);
                 if (response != default && _supportedEventTypes.Contains(response.Type))
                 {
-                    dockerLogger?.DetectedDockerEvent(response.Type, response.Action, responseContent);
+                    clientLogger?.DockerSentEventMessage(responseContent);
 
                     yield return new DockerContainerEvent
                     {
@@ -115,26 +127,19 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             }
         }
 
-        /// <summary>
-        /// Connects to Docker using Unix socket and returns a <see cref="NetworkStream" />.
-        /// </summary>
-        public static async ValueTask<Stream> ConnectAsync(EndPoint socketEndpoint, CancellationToken cancellationToken)
-        {
-            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-            await socket.ConnectAsync(socketEndpoint, cancellationToken).ConfigureAwait(false);
-            return new NetworkStream(socket, ownsSocket: false);
-        }
-
         private async Task<T?> GetAsync<T>(
             string resourceUri, IDictionary<string, string[]?>? resourceFilters, CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IDocker));
+            using var requestClient = clientFactory.CreateClient(nameof(IDockerClient));
             using var requestMessage = CreateRequestMessage(resourceUri, resourceFilters);
+            clientLogger?.DockerRequestMessageCreated(requestMessage.RequestUri);
+
             using var responseMessage = await requestClient.SendAsync(
                 requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
             if (responseMessage.StatusCode == HttpStatusCode.NotFound)
             {
+                clientLogger?.DockerReturnedNotFoundStatusCode(requestMessage.RequestUri?.ToString());
                 return default;
             }
 
@@ -174,13 +179,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     network.Value.IPAddress?.Length > 0 ? IPAddress.Parse(network.Value.IPAddress!) : default);
             });
 
-            var containerState = response switch
-            {
-                DockerContainerResponse dockerResponse => dockerResponse.State,
-                DockerContainerDataResponse dataResponse => dataResponse.State.Status,
-                _ => default
-            };
-
             var containerLabels = response switch
             {
                 DockerContainerResponse dockerResponse => dockerResponse.Labels,
@@ -191,7 +189,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             return new DockerContainer
             {
                 Id = response.Id,
-                State = containerState ?? string.Empty,
                 Labels = containerLabels ?? new Dictionary<string, string>(),
                 Networks = containerNetworks.ToDictionary()
             };
@@ -208,7 +205,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             DockerContainerNetworkSettingsResponse NetworkSettings) : DockerContainerResponseBase(Id, NetworkSettings);
 
         private record DockerContainerDataResponse(
-            [property: JsonRequired] DockerContainerStateResponse State,
             [property: JsonRequired, JsonPropertyName("Config")] DockerContainerConfigurationResponse Configuration,
             string Id,
             DockerContainerNetworkSettingsResponse NetworkSettings) : DockerContainerResponseBase(Id, NetworkSettings);
@@ -218,9 +214,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         private record DockerContainerNetworkResponse(
             [property: JsonRequired] string? IPAddress);
-
-        private record DockerContainerStateResponse(
-            [property: JsonRequired] string Status);
 
         private record DockerContainerConfigurationResponse(
             [property: JsonRequired] IDictionary<string, string> Labels);

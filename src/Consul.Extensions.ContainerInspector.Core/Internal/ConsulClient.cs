@@ -1,21 +1,25 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Configuration.Models;
+﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
-using Microsoft.Extensions.Options;
+using Consul.Extensions.ContainerInspector.Extensions;
+using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
     /// <summary>
-    /// Default implementation of <see cref="IConsul" />.
+    /// Default implementation of <see cref="IConsulClient" />.
     /// </summary>
-    internal class Consul(
-        IOptions<ConsulConfiguration> options, IHttpClientFactory clientFactory) : IConsul
+    internal class ConsulClient(
+        IHttpClientFactory clientFactory,
+        ConsulConfiguration configuration,
+        ILogger<IConsulClient>? clientLogger) : IConsulClient
     {
         public async Task<IEnumerable<ServiceRegistration>> GetServicesAsync(CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsul));
+            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
             using var requestMessage = CreateRequestMessage(HttpMethod.Get, "agent/services");
+            clientLogger?.ConsulRequestMessageCreated(requestMessage);
 
             var response = await ExecuteRequestAsync<IDictionary<string, ServiceRegistration>>(
                 requestClient, requestMessage, cancellationToken);
@@ -25,17 +29,21 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task RegisterServiceAsync(ServiceRegistration service, CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsul));
+            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
             using var requestMessage = CreateRequestMessage(HttpMethod.Put, "agent/service/register");
-            requestMessage.Content = new StringContent(JsonSerializer.Serialize(service));
+
+            var serializedContent = JsonSerializer.Serialize(service);
+            requestMessage.Content = new StringContent(serializedContent);
+            clientLogger?.ConsulRequestMessageCreated(requestMessage, serializedContent);
 
             using (await ExecuteRequestAsync(requestClient, requestMessage, cancellationToken)) { }
         }
 
         public async Task UnregisterServiceAsync(string serviceId, CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsul));
+            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
             using var requestMessage = CreateRequestMessage(HttpMethod.Put, $"agent/service/deregister/{serviceId}");
+            clientLogger?.ConsulRequestMessageCreated(requestMessage);
 
             using (await ExecuteRequestAsync(requestClient, requestMessage, cancellationToken)) { }
         }
@@ -47,10 +55,12 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         private HttpRequestMessage CreateRequestMessage(HttpMethod method, string resourceUri)
         {
             var requestMessage = new HttpRequestMessage(method, $"/v1/{resourceUri}");
-            if (options.Value.AccessControlList?.Tokens?.Agent?.Length > 0)
+            if (configuration.AccessControlList.Token?.Length > 0)
             {
                 requestMessage.Headers.Authorization = new AuthenticationHeaderValue(
-                    "Bearer", options.Value.AccessControlList.Tokens.Agent);
+                    "Bearer", configuration.AccessControlList.Token);
+
+                clientLogger?.ConsulRequestMessageContainsToken(requestMessage);
             }
 
             return requestMessage;
