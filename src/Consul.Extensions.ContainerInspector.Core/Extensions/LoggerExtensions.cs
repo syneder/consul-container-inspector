@@ -1,5 +1,4 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Internal;
-using Consul.Extensions.ContainerInspector.Core.Models;
+﻿using Consul.Extensions.ContainerInspector.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Consul.Extensions.ContainerInspector.Extensions
@@ -72,11 +71,11 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         [LoggerMessage(301, LogLevel.Warning, "The Docker container with identifier {containerId} cannot be inspected because the container does not exist")]
         public static partial void CannotInspectNotExistedDockerContainer(this ILogger serviceLogger, string containerId);
 
-        [LoggerMessage(400, LogLevel.Error, $"The same task ARN '{{taskArn}}' was detected for multiple Docker containers. The container label {DockerInspector.TaskArnLabel} may have been added manually")]
+        [LoggerMessage(400, LogLevel.Error, $"The same task ARN '{{taskArn}}' was detected for multiple Docker containers. The container label {AmazonTaskArn.ContainerLabel} may have been added manually")]
         public static partial void DockerInspectorDetectedDuplicateTaskArn(this ILogger serviceLogger, string taskArn);
 
-        [LoggerMessage(401, LogLevel.Error, "Failed to parse task ARN for Docker container with identifier {containerId}")]
-        public static partial void CannotParseTaskArn(this ILogger serviceLogger, string containerId);
+        [LoggerMessage(401, LogLevel.Error, "Failed to parse task ARN '{taskArn}' for Docker container with identifier {containerId}")]
+        public static partial void CannotParseTaskArn(this ILogger serviceLogger, string containerId, string taskArn);
 
         public static void ConsulRequestMessageCreated(this ILogger serviceLogger, HttpRequestMessage message, string? content = default)
         {
@@ -115,7 +114,7 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         public static void DockerInspectorDefinedServiceName(this ILogger serviceLogger, string containerId, AmazonTask describedTask)
         {
             serviceLogger.DockerInspectorDefinedServiceName(
-                containerId, describedTask.Cluster, describedTask.Group, describedTask.Arn);
+                containerId, describedTask.Arn.Cluster, describedTask.Group, describedTask.Arn.Arn);
         }
 
         private static string? SerializeContainerNetworks(DockerContainer container)

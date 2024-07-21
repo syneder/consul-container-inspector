@@ -8,12 +8,7 @@
         /// <summary>
         /// Gets or sets the task ARN.
         /// </summary>
-        public required string Arn { get; set; }
-
-        /// <summary>
-        /// Gets or sets the name of the ECS cluster on which this task is running.
-        /// </summary>
-        public required string Cluster { get; set; }
+        public required AmazonTaskArn Arn { get; set; }
 
         /// <summary>
         /// Gets or sets the name of the group to which this task belongs.

@@ -22,6 +22,6 @@ namespace Consul.Extensions.ContainerInspector.Core
         /// <param name="cancellationToken">The <see cref="CancellationToken" />.</param>
         /// <returns><see cref="Task{IEnumerable{AmazonTask}}" /> that completes with enumerate
         /// of the existed described tasks.</returns>
-        Task<IEnumerable<AmazonTask>> DescribeTasksAsync(IEnumerable<string> arns, CancellationToken cancellationToken);
+        Task<IEnumerable<AmazonTask>> DescribeTasksAsync(IEnumerable<AmazonTaskArn> arns, CancellationToken cancellationToken);
     }
 }
