@@ -1,5 +1,4 @@
 ﻿using Microsoft.Extensions.Configuration;
-using System.Net;
 
 namespace Consul.Extensions.ContainerInspector.Configurations.Models
 {
@@ -12,17 +11,17 @@ namespace Consul.Extensions.ContainerInspector.Configurations.Models
         /// Gets or sets the IP address of the Consul agent.
         /// </summary>
         [ConfigurationKeyName("advertise_addr")]
-        public IPAddress? AdvertiseAddress { get; set; }
+        public string? AdvertiseAddress { get; set; }
 
         [ConfigurationKeyName("acl")]
-        public AccessControlConfiguration AccessControlList { get; set; } = new();
+        public AccessControlConfiguration AccessControlList { get; } = new();
 
         [ConfigurationKeyName("addresses")]
-        public AddressBindingConfiguration AddressBinding { get; set; } = new();
+        public AddressBindingConfiguration AddressBinding { get; } = new();
 
         public class AccessControlConfiguration
         {
-            internal Dictionary<string, string> Tokens { get; set; } = [];
+            public Dictionary<string, string> Tokens { get; } = [];
 
             /// <summary>
             /// Gets the Consul agent token to manage service registration.
@@ -33,7 +32,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations.Models
         public class AddressBindingConfiguration
         {
             [ConfigurationKeyName("http")]
-            internal string? HttpListenerAddresses { get; set; }
+            public string? HttpListenerAddresses { get; set; }
 
             /// <summary>
             /// Gets the Consul unix socket path.
