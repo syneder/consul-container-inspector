@@ -1,14 +1,13 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Net;
+using System.Text.Json.Serialization;
 
 namespace Consul.Extensions.ContainerInspector.Core.Models
 {
     /// <summary>
     /// Describes service registration in Consul cluster.
     /// </summary>
-    public class ServiceRegistration
+    public class ServiceRegistration(string name)
     {
-        private string _serviceName = string.Empty;
-
         /// <summary>
         /// Gets or sets the identifier for the service.
         /// </summary>
@@ -21,26 +20,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Models
         /// <summary>
         /// Gets or sets the name of the service.
         /// </summary>
-        /// <remarks>
-        /// Has the same meaning as the <see cref="Service" /> property.
-        /// </remarks>
-        public string Name
-        {
-            get => _serviceName;
-            set => _serviceName = value;
-        }
-
-        /// <summary>
-        /// Gets or sets the name of the service.
-        /// </summary>
-        /// <remarks>
-        /// Has the same meaning as the <see cref="Name" /> property.
-        /// </remarks>
-        public string Service
-        {
-            get => _serviceName;
-            set => _serviceName = value;
-        }
+        public virtual string Name { get; set; } = name;
 
         /// <summary>
         /// Gets or sets string value that specifies a service IP address or hostname.
@@ -62,5 +42,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Models
         /// </summary>
         [JsonPropertyName("Meta")]
         public IDictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+
+        public ServiceRegistration(string name, IPAddress? address) : this(name) => Address = address?.ToString();
     }
 }

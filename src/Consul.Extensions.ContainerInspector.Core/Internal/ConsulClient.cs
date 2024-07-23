@@ -1,5 +1,6 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
+using Consul.Extensions.ContainerInspector.Core.Models.Internal;
 using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
 using System.Net.Http.Headers;
@@ -21,7 +22,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             using var requestMessage = CreateRequestMessage(HttpMethod.Get, "agent/services");
             clientLogger?.ConsulRequestMessageCreated(requestMessage);
 
-            var response = await ExecuteRequestAsync<IDictionary<string, ServiceRegistration>>(
+            var response = await ExecuteRequestAsync<IDictionary<string, ServiceRegistrationHttpResponse>>(
                 requestClient, requestMessage, cancellationToken);
 
             return response?.Values ?? [];
