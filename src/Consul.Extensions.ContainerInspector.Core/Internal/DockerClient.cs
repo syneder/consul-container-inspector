@@ -121,7 +121,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     {
                         EventAction = response.Action,
                         EventType = response.Type,
-                        ContainerId = response.Actor.Id,
+                        ContainerId = response.Actor.Attributes.Container ?? response.Actor.Id,
                     };
                 }
             }
@@ -160,7 +160,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 if (resourceFilters?.Count > 0)
                 {
                     var serializedFilters = JsonSerializer.Serialize(resourceFilters);
-                    resourceUri += $"?filters={HttpUtility.UrlEncode(serializedFilters)}";
+                    resourceUri += resourceUri.Contains('?') ? '&' : '?';
+                    resourceUri += $"filters={HttpUtility.UrlEncode(serializedFilters)}";
                 }
             }
 
@@ -225,6 +226,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         private record DockerEventActorResponse(
             [property: JsonRequired, JsonPropertyName("ID")] string Id,
-            [property: JsonRequired] IDictionary<string, string> Attributes);
+            [property: JsonRequired] DockerEventAttributesResponse Attributes);
+
+        private record DockerEventAttributesResponse(string? Container);
     }
 }
