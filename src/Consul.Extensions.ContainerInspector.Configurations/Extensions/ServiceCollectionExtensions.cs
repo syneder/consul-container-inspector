@@ -33,7 +33,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.PostConfigure<ConsulConfiguration>(configuration =>
             {
                 var addressBinding = configuration.AddressBinding;
-                if (addressBinding.HttpListenerAddresses?.Length > 0 && addressBinding.SocketPath?.Length == 0)
+                if (addressBinding.HttpListenerAddresses?.Length > 0 && (addressBinding.SocketPath?.Length ?? 0) == 0)
                 {
                     var addresses = addressBinding.HttpListenerAddresses.Split();
                     var socketAddress = addresses.FirstOrDefault(address => address.StartsWith("unix://"));
