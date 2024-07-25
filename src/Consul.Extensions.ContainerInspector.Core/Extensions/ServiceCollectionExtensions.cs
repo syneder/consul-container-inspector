@@ -20,8 +20,7 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection ConfigureHttpClients(this IServiceCollection services)
         {
             services.AddHttpClient(nameof(IConsulClient))
-                .ConfigureHttpClient(ConsulClient.ConfigureHttpClient)
-                .ConfigureUnixSocket(serviceProvider =>
+                .ConfigureHttpClient(ConsulClient.ConfigureHttpClient).ConfigureUnixSocket(serviceProvider =>
                 {
                     var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
                     return configuration.AddressBinding.SocketPath ?? "/consul/run/consul.sock";

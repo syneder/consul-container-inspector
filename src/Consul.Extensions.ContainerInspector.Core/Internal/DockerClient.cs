@@ -2,11 +2,9 @@
 using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
@@ -115,16 +113,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         ContainerId = containerEvent.Actor.Attributes.ContainerId ?? containerEvent.Actor.Id,
                     };
                 }
-            }
-        }
-
-        internal static void ConfigureHttpClient(IServiceProvider serviceProvider, HttpClient client)
-        {
-            var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
-            if (configuration.AccessControlList.Token?.Length > 0)
-            {
-                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-                    "Bearer", configuration.AccessControlList.Token);
             }
         }
 
