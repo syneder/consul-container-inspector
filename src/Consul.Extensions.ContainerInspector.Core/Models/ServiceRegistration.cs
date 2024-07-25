@@ -20,7 +20,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Models
         /// <summary>
         /// Gets or sets the name of the service.
         /// </summary>
-        public virtual string Name { get; set; } = name;
+        public string Name { get; set; } = name;
 
         /// <summary>
         /// Gets or sets string value that specifies a service IP address or hostname.

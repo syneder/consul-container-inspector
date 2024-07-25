@@ -1,95 +1,56 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
+using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
-using Consul.Extensions.ContainerInspector.Core.Models.Internal;
-using Consul.Extensions.ContainerInspector.Extensions;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
-using System.Text.Json;
+using System.Net.Http.Json;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
     /// <summary>
     /// Default implementation of <see cref="IConsulClient" />.
     /// </summary>
-    internal class ConsulClient(
-        IHttpClientFactory clientFactory,
-        ConsulConfiguration configuration,
-        ILogger<IConsulClient>? clientLogger) : IConsulClient
+    internal class ConsulClient(IHttpClientFactory clientFactory)
+        : BaseClient(nameof(IConsulClient), clientFactory), IConsulClient
     {
+        protected override string BaseResourceURI => "v1";
+
         public async Task<IEnumerable<ServiceRegistration>> GetServicesAsync(CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
-            using var requestMessage = CreateRequestMessage(HttpMethod.Get, "agent/services");
-            clientLogger?.ConsulRequestMessageCreated(requestMessage);
-
-            var response = await ExecuteRequestAsync<IDictionary<string, ServiceRegistrationHttpResponse>>(
-                requestClient, requestMessage, cancellationToken);
+            using var request = CreateRequest(HttpMethod.Get, "agent/services");
+            var response = await request.ExecuteRequestAsync<IDictionary<string, ServiceRegistrationResponse>>(
+                cancellationToken);
 
             return response?.Values ?? [];
         }
 
         public async Task RegisterServiceAsync(ServiceRegistration service, CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
-            using var requestMessage = CreateRequestMessage(HttpMethod.Put, "agent/service/register");
-
-            var serializedContent = JsonSerializer.Serialize(service);
-            requestMessage.Content = new StringContent(serializedContent);
-            clientLogger?.ConsulRequestMessageCreated(requestMessage, serializedContent);
-
-            using (await ExecuteRequestAsync(requestClient, requestMessage, cancellationToken)) { }
+            using var request = CreateRequest(HttpMethod.Put, "agent/service/register");
+            using (request.RequestMessage.Content = JsonContent.Create(service))
+            {
+                using (await request.ExecuteRequestAsync(cancellationToken)) { }
+            }
         }
 
         public async Task UnregisterServiceAsync(string serviceId, CancellationToken cancellationToken)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IConsulClient));
-            using var requestMessage = CreateRequestMessage(HttpMethod.Put, $"agent/service/deregister/{serviceId}");
-            clientLogger?.ConsulRequestMessageCreated(requestMessage);
-
-            using (await ExecuteRequestAsync(requestClient, requestMessage, cancellationToken)) { }
+            using var request = CreateRequest(HttpMethod.Put, $"agent/service/deregister/{serviceId}");
+            using (await request.ExecuteRequestAsync(cancellationToken)) { }
         }
 
         /// <summary>
-        /// Creates a <see cref="HttpRequestMessage" /> and adds an authentication header if the
-        /// token is set in the configuration.
+        /// Configures the <see cref="HttpClient" /> for requests to Consul.
         /// </summary>
-        private HttpRequestMessage CreateRequestMessage(HttpMethod method, string resourceUri)
+        /// <param name="serviceProvider">An instance of the root service provider.</param>
+        internal static void ConfigureHttpClient(IServiceProvider serviceProvider, HttpClient client)
         {
-            var requestMessage = new HttpRequestMessage(method, $"/v1/{resourceUri}");
+            var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
             if (configuration.AccessControlList.Token?.Length > 0)
             {
-                requestMessage.Headers.Authorization = new AuthenticationHeaderValue(
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
                     "Bearer", configuration.AccessControlList.Token);
-
-                clientLogger?.ConsulRequestMessageContainsToken(requestMessage);
             }
-
-            return requestMessage;
-        }
-
-        /// <summary>
-        /// Sends the request, waits to read the response headers, and ensures that the response
-        /// status code is successful.
-        /// </summary>
-        private static async Task<HttpResponseMessage> ExecuteRequestAsync(
-            HttpClient requestClient, HttpRequestMessage requestMessage, CancellationToken cancellationToken)
-        {
-            var responseMessage = await requestClient.SendAsync(
-                requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            return responseMessage.EnsureSuccessStatusCode();
-        }
-
-        /// <summary>
-        /// Executes the request, reads the contents of the response, and deserializes it into an object.
-        /// </summary>
-        private static async Task<T?> ExecuteRequestAsync<T>(
-            HttpClient requestClient, HttpRequestMessage requestMessage, CancellationToken cancellationToken)
-        {
-            using var responseMessage = await ExecuteRequestAsync(requestClient, requestMessage, cancellationToken);
-            using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
-
-            return await JsonSerializer.DeserializeAsync<T>(contentStream, cancellationToken: cancellationToken);
         }
     }
 }

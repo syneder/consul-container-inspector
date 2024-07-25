@@ -1,13 +1,14 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
+using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Web;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
@@ -17,25 +18,24 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     internal class DockerClient(
         IHttpClientFactory clientFactory,
         DockerConfiguration configuration,
-        ILogger<IDockerClient>? clientLogger) : IDockerClient
+        ILogger<IDockerClient>? clientLogger) : BaseClient(nameof(IDockerClient), clientFactory), IDockerClient
     {
         private static readonly string[] _supportedEventTypes = ["container", "network"];
-        private static readonly string _baseRequestUri = $"/v{IDockerClient.DockerVersion}";
+
+        protected override string BaseResourceURI { get; } = $"/v{IDockerClient.DockerVersion}";
 
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
-            var containerFilters = new Dictionary<string, string[]?> { { "label", configuration.ExpectedLabels } };
-            var containers = await GetAsync<ICollection<DockerContainerResponse>>(
-                "containers/json", containerFilters, cancellationToken);
+            var request = CreateRequest(HttpMethod.Get, "containers/json");
+            AddContainerFilters(request, new() { { "label", configuration.ExpectedLabels } });
 
-            if (containers?.Count > 0)
+            var response = await request.ExecuteRequestAsync<ICollection<DockerResponse>>(cancellationToken);
+            if (response?.Count > 0)
             {
-                clientLogger?.DockerReturnedContainers(containers.Count);
-
                 // We will only return containers that are at least running. There is no need to return
                 // stopped containers, since most likely the Consul does not have information about them,
                 // or if there is any, it will be deleted after the inspector determines this.
-                return containers.Where(container => container.State == "running").Select(Convert);
+                return response.Where(container => container.State == "running").Select(Convert);
             }
 
             return [];
@@ -43,132 +43,109 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task<DockerContainer?> GetContainerAsync(string containerId, CancellationToken cancellationToken)
         {
-            var resourceUri = $"containers/{containerId}/json";
+            var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json");
 
-            // Compared to the GetContainersAsync method, this method returns information about
-            // the container regardless of whether it is running.
-            var container = await GetAsync<DockerContainerDataResponse>(resourceUri, default, cancellationToken);
-            if (container == default)
+            try
+            {
+                // Compared to the GetContainersAsync method, this method returns information about
+                // the container regardless of whether it is running.
+                var container = await request.ExecuteRequestAsync<InspectedDockerResponse>(cancellationToken);
+                if (container == default)
+                {
+                    throw new UnreachableException();
+                }
+
+                var containerLabels = container.Configuration.Labels;
+                if (containerLabels.Count > 0)
+                {
+                    clientLogger?.DockerContainerContainsLabels(containerId, containerLabels);
+                }
+
+                foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
+                {
+                    if (!containerLabels.TryGetValue(data[0], out string? value))
+                    {
+                        clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0]);
+                        return default;
+                    }
+
+                    // The expected label can be specified in the format name=value. In such cases, in
+                    // addition to checking whether the label is present in the container, we need to
+                    // check whether the value of the container's label matches the expected value.
+                    if (data.Length == 2 && data[1] != value)
+                    {
+                        clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0], data[1]);
+                        return default;
+                    }
+                }
+
+                return Convert(container);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
             {
                 clientLogger?.DockerContainerNotFound(containerId);
                 return default;
             }
-
-            var containerLabels = container.Configuration.Labels;
-            if (containerLabels.Count > 0)
-            {
-                clientLogger?.DockerContainerContainsLabels(containerId, containerLabels);
-            }
-
-            foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
-            {
-                if (!containerLabels.TryGetValue(data[0], out string? value))
-                {
-                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0]);
-                    return default;
-                }
-
-                // The expected label can be specified in the format name=value. In such cases, in
-                // addition to checking whether the label is present in the container, we need to
-                // check whether the value of the container's label matches the expected value.
-                if (data.Length == 2 && data[1] != value)
-                {
-                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0], data[1]);
-                    return default;
-                }
-            }
-
-            return Convert(container);
         }
 
         public async IAsyncEnumerable<DockerContainerEvent> MonitorAsync(
             DateTime since, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var resourceUri = $"events?since={((DateTimeOffset)since).ToUnixTimeSeconds()}";
-            var resourceFilters = new Dictionary<string, string[]?>()
+            var request = CreateRequest(HttpMethod.Get, "containers/json").AddQueryParameters(new()
+            {
+                { "since", ((DateTimeOffset)since).ToUnixTimeSeconds().ToString() }
+            });
+
+            AddContainerFilters(request, new()
             {
                 { "type", _supportedEventTypes },
                 { "label", configuration.ExpectedLabels }
-            };
-
-            using var requestClient = clientFactory.CreateClient(nameof(IDockerClient));
-            using var requestMessage = CreateRequestMessage(resourceUri, resourceFilters);
-            clientLogger?.DockerRequestMessageCreated(requestMessage.RequestUri);
-
-            using var responseMessage = await requestClient.SendAsync(
-                requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            responseMessage.EnsureSuccessStatusCode();
-            using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
-            using var contentStreamReader = new StreamReader(contentStream, new UTF8Encoding(false));
+            });
 
             // The Docker API server will hold connections and when events occur, send a JSON string
             // for each event. There is always a line break at the end of a JSON string.
-            while (!cancellationToken.IsCancellationRequested)
+            await foreach (var containerEvent in request.GetStreamAsync<DockerEventResponse>(cancellationToken))
             {
-                var responseContent = await contentStreamReader.ReadLineAsync(cancellationToken);
-                if (responseContent == default || cancellationToken.IsCancellationRequested)
+                if (_supportedEventTypes.Contains(containerEvent.Type))
                 {
-                    continue;
-                }
-
-                var response = JsonSerializer.Deserialize<DockerEventResponse>(responseContent);
-                if (response != default && _supportedEventTypes.Contains(response.Type))
-                {
-                    clientLogger?.DockerSentEventMessage(responseContent);
-
                     yield return new DockerContainerEvent
                     {
-                        EventAction = response.Action,
-                        EventType = response.Type,
-                        ContainerId = response.Actor.Attributes.Container ?? response.Actor.Id,
+                        EventAction = containerEvent.Action,
+                        EventType = containerEvent.Type,
+                        ContainerId = containerEvent.Actor.Attributes.ContainerId ?? containerEvent.Actor.Id,
                     };
                 }
             }
         }
 
-        private async Task<T?> GetAsync<T>(
-            string resourceUri, IDictionary<string, string[]?>? resourceFilters, CancellationToken cancellationToken)
+        internal static void ConfigureHttpClient(IServiceProvider serviceProvider, HttpClient client)
         {
-            using var requestClient = clientFactory.CreateClient(nameof(IDockerClient));
-            using var requestMessage = CreateRequestMessage(resourceUri, resourceFilters);
-            clientLogger?.DockerRequestMessageCreated(requestMessage.RequestUri);
-
-            using var responseMessage = await requestClient.SendAsync(
-                requestMessage, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-
-            if (responseMessage.StatusCode == HttpStatusCode.NotFound)
+            var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
+            if (configuration.AccessControlList.Token?.Length > 0)
             {
-                clientLogger?.DockerReturnedNotFoundStatusCode(requestMessage.RequestUri?.ToString());
-                return default;
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+                    "Bearer", configuration.AccessControlList.Token);
             }
-
-            responseMessage.EnsureSuccessStatusCode();
-            using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
-            return await JsonSerializer.DeserializeAsync<T>(contentStream, cancellationToken: cancellationToken);
         }
 
-        private static HttpRequestMessage CreateRequestMessage(string resourceUri, IDictionary<string, string[]?>? resourceFilters)
+        private static void AddContainerFilters(HttpRequest request, Dictionary<string, string[]?> containerFilters)
         {
-            if (resourceFilters?.Count > 0)
+            if (containerFilters.Count > 0)
             {
                 // Before creating the request with resource filters, we will discard any filters
                 // that have no values ​​and serialize the remaining resource filters to JSON format.
                 // If for example the resource filters contain two labels, Docker will only return
                 // containers that have both labels, not just one of them.
-                resourceFilters = resourceFilters.Where(data => data.Value?.Length > 0).ToDictionary();
-                if (resourceFilters?.Count > 0)
+                containerFilters = containerFilters.Where(data => data.Value?.Length > 0).ToDictionary();
+                if (containerFilters.Count > 0)
                 {
-                    var serializedFilters = JsonSerializer.Serialize(resourceFilters);
-                    resourceUri += resourceUri.Contains('?') ? '&' : '?';
-                    resourceUri += $"filters={HttpUtility.UrlEncode(serializedFilters)}";
+                    var serializedFilters = JsonSerializer.Serialize(containerFilters);
+                    request.AddQueryParameters(new() { { "filters", serializedFilters } });
                 }
             }
-
-            return new HttpRequestMessage(HttpMethod.Get, string.Join('/', [_baseRequestUri, resourceUri]));
         }
 
-        private static DockerContainer Convert(DockerContainerResponseBase response)
+        private static DockerContainer Convert(BaseDockerResponse response)
         {
             var containerNetworks = response.NetworkSettings.Networks.Select(network =>
             {
@@ -182,8 +159,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
             var containerLabels = response switch
             {
-                DockerContainerResponse dockerResponse => dockerResponse.Labels,
-                DockerContainerDataResponse dataResponse => dataResponse.Configuration.Labels,
+                DockerResponse dockerResponse => dockerResponse.Labels,
+                InspectedDockerResponse inspectedResponse => inspectedResponse.Configuration.Labels,
                 _ => default
             };
 
@@ -194,40 +171,5 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 Networks = containerNetworks.ToDictionary()
             };
         }
-
-        private abstract record DockerContainerResponseBase(
-            [property: JsonRequired] string Id,
-            [property: JsonRequired] DockerContainerNetworkSettingsResponse NetworkSettings);
-
-        private record DockerContainerResponse(
-            [property: JsonRequired] string State,
-            [property: JsonRequired] IDictionary<string, string> Labels,
-            string Id,
-            DockerContainerNetworkSettingsResponse NetworkSettings) : DockerContainerResponseBase(Id, NetworkSettings);
-
-        private record DockerContainerDataResponse(
-            [property: JsonRequired, JsonPropertyName("Config")] DockerContainerConfigurationResponse Configuration,
-            string Id,
-            DockerContainerNetworkSettingsResponse NetworkSettings) : DockerContainerResponseBase(Id, NetworkSettings);
-
-        private record DockerContainerNetworkSettingsResponse(
-            [property: JsonRequired] IDictionary<string, DockerContainerNetworkResponse> Networks);
-
-        private record DockerContainerNetworkResponse(
-            [property: JsonRequired] string? IPAddress);
-
-        private record DockerContainerConfigurationResponse(
-            [property: JsonRequired] IDictionary<string, string> Labels);
-
-        private record DockerEventResponse(
-            [property: JsonRequired] string Type,
-            [property: JsonRequired] string Action,
-            [property: JsonRequired] DockerEventActorResponse Actor);
-
-        private record DockerEventActorResponse(
-            [property: JsonRequired, JsonPropertyName("ID")] string Id,
-            [property: JsonRequired] DockerEventAttributesResponse Attributes);
-
-        private record DockerEventAttributesResponse(string? Container);
     }
 }
