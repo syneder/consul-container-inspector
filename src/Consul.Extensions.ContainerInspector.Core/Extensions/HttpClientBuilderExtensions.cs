@@ -11,16 +11,18 @@ namespace Microsoft.Extensions.DependencyInjection
         /// Configures the <see cref="HttpClient" /> to use a unix socket.
         /// </summary>
         /// <param name="builder">The <see cref="IHttpClientBuilder" />.</param>
-        /// <param name="socketProvider">A delegate used to provide the path to a unix socket.</param>
-        /// <returns>An <see cref="IHttpClientBuilder"/> that can be used to configure the client.</returns>
+        /// <param name="socketPathProvider">A delegate used to provide the path to a unix socket.</param>
         public static IHttpClientBuilder ConfigureUnixSocket(
-            this IHttpClientBuilder builder, Func<IServiceProvider, string> socketProvider)
+            this IHttpClientBuilder builder, Func<IServiceProvider, string> socketPathProvider)
         {
             return builder
-                .ConfigureHttpClient(client => client.BaseAddress = new Uri("http://localhost"))
+                .ConfigureHttpClient(client =>
+                {
+                    client.BaseAddress = new Uri("http://localhost");
+                })
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
                 {
-                    var socketEndpoint = new UnixDomainSocketEndPoint(socketProvider(serviceProvider));
+                    var socketEndpoint = new UnixDomainSocketEndPoint(socketPathProvider(serviceProvider));
                     return CreateSocketHttpHandler(socketEndpoint);
                 });
         }

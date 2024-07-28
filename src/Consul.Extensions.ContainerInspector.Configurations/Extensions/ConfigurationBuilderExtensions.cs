@@ -7,13 +7,7 @@ namespace Microsoft.Extensions.Configuration
     /// </summary>
     public static class ConfigurationBuilderExtensions
     {
-        private static readonly IEnumerable<Func<IConfigurationProvider>> _configurationProviderFactories =
-        [
-            () => new ConsulConfigurationProvider(ConsulConfigurationFilePath, ConsulConfigurationSection),
-            () => new DockerConfigurationProvider(DockerConfigurationSection),
-            () => new DockerInspectorConfigurationProvider(DockerInspectorConfigurationSection),
-            () => new ManagedInstanceRegistrationProvider(ManagedInstanceRegistrationFilePath, ManagedInstanceConfigurationSection),
-        ];
+        private static readonly IEnumerable<Func<IConfigurationProvider>> _configurationProviderFactories;
 
         /// <summary>
         /// Default configuration section where the read Consul configurations will be located.
@@ -44,6 +38,17 @@ namespace Microsoft.Extensions.Configuration
         /// Default path to AWS managed instance registration.
         /// </summary>
         public const string ManagedInstanceRegistrationFilePath = "/amazon/ssm/registration";
+
+        static ConfigurationBuilderExtensions()
+        {
+            _configurationProviderFactories =
+            [
+                () => new ConsulConfigurationProvider(ConsulConfigurationFilePath, ConsulConfigurationSection),
+                () => new DockerConfigurationProvider(DockerConfigurationSection),
+                () => new DockerInspectorConfigurationProvider(DockerInspectorConfigurationSection),
+                () => new ManagedInstanceRegistrationProvider(ManagedInstanceRegistrationFilePath, ManagedInstanceConfigurationSection),
+            ];
+        }
 
         /// <summary>
         /// Adds an <see cref="IConfigurationProvider"/> that reads Consul, Docker and Docker

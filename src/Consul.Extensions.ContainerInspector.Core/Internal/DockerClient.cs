@@ -27,7 +27,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             var request = CreateRequest(HttpMethod.Get, "containers/json");
             AddContainerFilters(request, new() { { "label", configuration.ExpectedLabels } });
 
-            var response = await request.ExecuteRequestAsync<ICollection<DockerResponse>>(cancellationToken);
+            var response = await request.ExecuteRequestAsync(
+                JsonSerializerGeneratedContext.Default.DockerResponseCollection, cancellationToken);
+
             if (response?.Count > 0)
             {
                 // We will only return containers that are at least running. There is no need to return
@@ -47,7 +49,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             {
                 // Compared to the GetContainersAsync method, this method returns information about
                 // the container regardless of whether it is running.
-                var container = await request.ExecuteRequestAsync<InspectedDockerResponse>(cancellationToken);
+                var container = await request.ExecuteRequestAsync(
+                    JsonSerializerGeneratedContext.Default.InspectedDockerResponse, cancellationToken);
+
                 if (container == default)
                 {
                     throw new UnreachableException();
@@ -102,7 +106,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
             // The Docker API server will hold connections and when events occur, send a JSON string
             // for each event. There is always a line break at the end of a JSON string.
-            await foreach (var containerEvent in request.GetStreamAsync<DockerEventResponse>(cancellationToken))
+            await foreach (var containerEvent in request.GetStreamAsync(
+                JsonSerializerGeneratedContext.Default.DockerEventResponse, cancellationToken))
             {
                 if (_supportedEventTypes.Contains(containerEvent.Type))
                 {
@@ -127,7 +132,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 containerFilters = containerFilters.Where(data => data.Value?.Length > 0).ToDictionary();
                 if (containerFilters.Count > 0)
                 {
-                    var serializedFilters = JsonSerializer.Serialize(containerFilters);
+                    var serializedFilters = JsonSerializer.Serialize(
+                        containerFilters!, JsonSerializerGeneratedContext.Default.ContainerFilters);
+
                     request.AddQueryParameters(new() { { "filters", serializedFilters } });
                 }
             }

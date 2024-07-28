@@ -1,5 +1,4 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
-using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
@@ -18,8 +17,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async Task<IEnumerable<ServiceRegistration>> GetServicesAsync(CancellationToken cancellationToken)
         {
             using var request = CreateRequest(HttpMethod.Get, "agent/services");
-            var response = await request.ExecuteRequestAsync<IDictionary<string, ServiceRegistrationResponse>>(
-                cancellationToken);
+            var response = await request.ExecuteRequestAsync(
+                JsonSerializerGeneratedContext.Default.ServiceRegistrationResponseDictionary, cancellationToken);
 
             return response?.Values ?? [];
         }
@@ -27,10 +26,11 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async Task RegisterServiceAsync(ServiceRegistration service, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(HttpMethod.Put, "agent/service/register");
-            using (request.RequestMessage.Content = JsonContent.Create(service))
-            {
-                using (await request.ExecuteRequestAsync(cancellationToken)) { }
-            }
+            using var requestContent = JsonContent.Create(
+                service, JsonSerializerGeneratedContext.Default.ServiceRegistration);
+
+            request.RequestMessage.Content = requestContent;
+            using (await request.ExecuteRequestAsync(cancellationToken)) { }
         }
 
         public async Task UnregisterServiceAsync(string serviceId, CancellationToken cancellationToken)

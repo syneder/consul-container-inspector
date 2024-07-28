@@ -1,4 +1,4 @@
-﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
+﻿using Consul.Extensions.ContainerInspector.Configurations.Internal;
 using System.Text.Json;
 
 namespace Consul.Extensions.ContainerInspector.Configurations
@@ -27,7 +27,8 @@ namespace Consul.Extensions.ContainerInspector.Configurations
             if (Path.Exists(registrationFilePath))
             {
                 using var stream = File.OpenRead(registrationFilePath);
-                var instanceRegistration = JsonSerializer.Deserialize<ManagedInstanceRegistration>(stream);
+                var instanceRegistration = JsonSerializer.Deserialize(
+                    stream, JsonSerializerGeneratedContext.Default.ManagedInstanceRegistration);
 
                 // Although the registration file contains, in addition to the instance ID, the region
                 // in which instance is registered, this solution only requires the instance ID, which

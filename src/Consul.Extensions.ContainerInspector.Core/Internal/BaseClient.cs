@@ -2,6 +2,7 @@
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
@@ -81,16 +82,17 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             /// <summary>
             /// Executes the request, reads the contents of the response, and deserializes it into an object.
             /// </summary>
-            public async Task<T?> ExecuteRequestAsync<T>(CancellationToken cancellationToken)
+            /// <param name="typeMetadata">Metadata about the type to deserialize.</param>
+            public async Task<T?> ExecuteRequestAsync<T>(JsonTypeInfo<T> typeMetadata, CancellationToken cancellationToken)
             {
                 using var responseMessage = await ExecuteRequestAsync(cancellationToken);
                 using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
 
-                return await JsonSerializer.DeserializeAsync<T>(contentStream, cancellationToken: cancellationToken);
+                return await JsonSerializer.DeserializeAsync<T>(contentStream, typeMetadata, cancellationToken);
             }
 
             public async IAsyncEnumerable<T> GetStreamAsync<T>(
-                [EnumeratorCancellation] CancellationToken cancellationToken) where T : class
+                JsonTypeInfo<T> typeMetadata, [EnumeratorCancellation] CancellationToken cancellationToken) where T : class
             {
                 using var responseMessage = await ExecuteRequestAsync(cancellationToken);
                 using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
@@ -104,7 +106,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         continue;
                     }
 
-                    var response = JsonSerializer.Deserialize<T>(responseContent);
+                    using var stream = new MemoryStream(Encoding.UTF8.GetBytes(responseContent));
+                    var response = await JsonSerializer.DeserializeAsync<T>(stream, typeMetadata, cancellationToken);
                     if (response == default)
                     {
                         continue;
