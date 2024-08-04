@@ -8,18 +8,18 @@ as container network connection and disconnection events.
 
 ## Introduction
 The **container inspector** is designed as a helper service to implement service discovery
-in an ECS Anywhere cluster. The main conditions for the service to function as a service
-discovery are:
+in an Amazon ECS Anywhere cluster. The main conditions for the service to function as a
+service discovery are:
 - **container inspector** must be running on a host that is running the Docker containers
 for which service discovery needs to be enabled;
-- access to Docker for event monitoring must be allowed through a unix socket;
 - Consul agent must be running on the same host, and access to the Consul agent API must
-be allowed through a unix socket.
+be allowed through a unix socket;
+- access to Docker for event monitoring must be allowed through a unix socket.
 
 > [!NOTE]
-> If you are running the **container inspector** via ECS Anywhere, it is recommended to run
-> the inspector as DAEMON. This will run the inspector on every host in the ECS Anywhere
-> cluster.
+> If you are running the **container inspector** using Amazon ECS Anywhere, it is recommended
+> to run the **container inspector** as DAEMON. This will run the inspector on every host in
+> the Amazon ECS Anywhere cluster.
 
 ## Configure Consul agent
 Before running the **container inspector**, make sure that the Consul agent is accessible
@@ -32,3 +32,4 @@ addresses {
   http = "127.0.0.1 unix:///consul/run/consul.sock"
 }
 ```
+
