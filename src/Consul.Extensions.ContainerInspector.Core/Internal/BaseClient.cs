@@ -29,7 +29,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             return new(requestMessageInvoker, new HttpRequestMessage(method, '/' + requestUri));
         }
 
-        protected class HttpRequest(HttpMessageInvoker messageInvoker, HttpRequestMessage message) : IDisposable
+        protected class HttpRequest(HttpClient messageInvoker, HttpRequestMessage message) : IDisposable
         {
             public HttpRequestMessage RequestMessage => message;
 
@@ -65,7 +65,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     hasSeparator = true;
                 }
 
-                message.RequestUri = new(requestUriBuilder.ToString());
+                message.RequestUri = new(requestUriBuilder.ToString(), UriKind.RelativeOrAbsolute);
                 return this;
             }
 
@@ -75,7 +75,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             /// </summary>
             public async Task<HttpResponseMessage> ExecuteRequestAsync(CancellationToken cancellationToken)
             {
-                var responseMessage = await messageInvoker.SendAsync(message, cancellationToken);
+                var responseMessage = await messageInvoker.SendAsync(
+                    message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
                 return responseMessage.EnsureSuccessStatusCode();
             }
 
@@ -88,11 +90,11 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 using var responseMessage = await ExecuteRequestAsync(cancellationToken);
                 using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
 
-                return await JsonSerializer.DeserializeAsync<T>(contentStream, typeMetadata, cancellationToken);
+                return await JsonSerializer.DeserializeAsync(contentStream, typeMetadata, cancellationToken);
             }
 
-            public async IAsyncEnumerable<T> GetStreamAsync<T>(
-                JsonTypeInfo<T> typeMetadata, [EnumeratorCancellation] CancellationToken cancellationToken) where T : class
+            public async IAsyncEnumerable<string> GetStreamAsync(
+                [EnumeratorCancellation] CancellationToken cancellationToken)
             {
                 using var responseMessage = await ExecuteRequestAsync(cancellationToken);
                 using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
@@ -100,20 +102,13 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var responseContent = await contentStreamReader.ReadLineAsync(cancellationToken);
-                    if (responseContent == default || cancellationToken.IsCancellationRequested)
+                    var content = await contentStreamReader.ReadLineAsync(cancellationToken);
+                    if (content == default || cancellationToken.IsCancellationRequested)
                     {
                         continue;
                     }
 
-                    using var stream = new MemoryStream(Encoding.UTF8.GetBytes(responseContent));
-                    var response = await JsonSerializer.DeserializeAsync<T>(stream, typeMetadata, cancellationToken);
-                    if (response == default)
-                    {
-                        continue;
-                    }
-
-                    yield return response;
+                    yield return content;
                 }
             }
         }

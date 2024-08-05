@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Text.Json;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
@@ -20,7 +21,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     {
         private static readonly string[] _supportedEventTypes = ["container", "network"];
 
-        protected override string BaseResourceURI { get; } = $"/v{IDockerClient.DockerVersion}";
+        protected override string BaseResourceURI { get; } = $"v{IDockerClient.DockerVersion}";
 
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
@@ -93,7 +94,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async IAsyncEnumerable<DockerContainerEvent> MonitorAsync(
             DateTime since, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var request = CreateRequest(HttpMethod.Get, "containers/json").AddQueryParameters(new()
+            var request = CreateRequest(HttpMethod.Get, "events").AddQueryParameters(new()
             {
                 { "since", ((DateTimeOffset)since).ToUnixTimeSeconds().ToString() }
             });
@@ -106,11 +107,16 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
             // The Docker API server will hold connections and when events occur, send a JSON string
             // for each event. There is always a line break at the end of a JSON string.
-            await foreach (var containerEvent in request.GetStreamAsync(
-                JsonSerializerGeneratedContext.Default.DockerEventResponse, cancellationToken))
+            await foreach (var content in request.GetStreamAsync(cancellationToken))
             {
-                if (_supportedEventTypes.Contains(containerEvent.Type))
+                using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+                var containerEvent = await JsonSerializer.DeserializeAsync(
+                    contentStream, JsonSerializerGeneratedContext.Default.DockerEventResponse, cancellationToken);
+
+                if (containerEvent != default && _supportedEventTypes.Contains(containerEvent.Type))
                 {
+                    clientLogger?.DockerSentEventMessage(content);
+
                     yield return new DockerContainerEvent
                     {
                         EventAction = containerEvent.Action,
