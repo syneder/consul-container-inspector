@@ -27,11 +27,17 @@
 
         private static void ConfigureServices(HostBuilderContext context, IServiceCollection services)
         {
+            services.Configure<ConsoleLifetimeOptions>(options =>
+            {
+                options.SuppressStatusMessages = true;
+            });
+
             services.AddLogging(serviceLogging =>
             {
                 serviceLogging.AddSimpleConsole(options =>
                 {
                     options.SingleLine = true;
+                    options.IncludeScopes = true;
                 });
 
                 if (context.Configuration.GetSection("verbose").Exists())

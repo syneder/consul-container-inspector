@@ -77,9 +77,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                     if (containerDescriptor.ServiceName?.Length > 0)
                     {
-                        _inspectorLogger?.DockerInspectorDetectedDockerContainer(
-                            containerDescriptor.Container.Id, containerDescriptor.ServiceName);
-
                         yield return containerDescriptor.CreateInspectorEvent(
                             DockerInspectorEventType.ContainerDetected);
                     }
@@ -97,7 +94,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     if (!_supportedActions.Contains(containerEvent.EventAction))
                     {
                         _inspectorLogger?.DockerReturnedNotSupportedEvent(
-                            containerEvent.EventType, containerEvent.EventAction, containerEvent.ContainerId);
+                            containerEvent.EventType, containerEvent.EventAction);
 
                         continue;
                     }
@@ -165,15 +162,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         _containerDescriptors[container.Id] = await InspectContainerAsync(container);
                         if (cachedDescriptor.Container.Networks.Except(container.Networks).Any())
                         {
-                            if (_inspectorLogger?.IsEnabled(LogLevel.Trace) ?? default)
-                            {
-                                _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
-                                    container.Id, container, cachedDescriptor.Container);
-                            }
-                            else
-                            {
-                                _inspectorLogger?.DockerContainerNetworkConfigurationChanged(container.Id);
-                            }
+                            _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
+                                container.Id, container, cachedDescriptor.Container);
 
                             yield return _containerDescriptors[container.Id].CreateInspectorEvent(
                                 DockerInspectorEventType.ContainerNetworksUpdated);

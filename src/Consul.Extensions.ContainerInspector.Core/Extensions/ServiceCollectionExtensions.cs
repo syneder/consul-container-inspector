@@ -19,20 +19,26 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <returns>The <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection ConfigureHttpClients(this IServiceCollection services)
         {
-            services.AddHttpClient(nameof(IConsulClient))
-                .ConfigureHttpClient(ConsulClient.ConfigureHttpClient).ConfigureUnixSocket(serviceProvider =>
+            services
+                .AddHttpClient(nameof(IConsulClient))
+                .ConfigureHttpClient(ConsulClient.ConfigureHttpClient)
+                .ConfigureHttpLogging()
+                .ConfigureUnixSocket(serviceProvider =>
                 {
                     var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
                     return configuration.AddressBinding.SocketPath ?? "/consul/run/consul.sock";
                 });
 
-            services.AddHttpClient(nameof(IDockerClient)).ConfigureUnixSocket(serviceProvider =>
-            {
-                var configuration = serviceProvider.GetRequiredService<DockerConfiguration>();
-                return configuration.SocketPath ?? "/var/run/docker.sock";
-            });
+            services
+                .AddHttpClient(nameof(IDockerClient))
+                .ConfigureHttpLogging()
+                .ConfigureUnixSocket(serviceProvider =>
+                {
+                    var configuration = serviceProvider.GetRequiredService<DockerConfiguration>();
+                    return configuration.SocketPath ?? "/var/run/docker.sock";
+                });
 
-            services.AddHttpClient(nameof(IAmazonClient));
+            services.AddHttpClient(nameof(IAmazonClient)).ConfigureHttpLogging();
             return services;
         }
 

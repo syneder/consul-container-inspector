@@ -1,4 +1,6 @@
-﻿using System.Net.Sockets;
+﻿using Consul.Extensions.ContainerInspector.Core.Internal.Logging;
+using Microsoft.Extensions.Logging;
+using System.Net.Sockets;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -25,6 +27,28 @@ namespace Microsoft.Extensions.DependencyInjection
                     var socketEndpoint = new UnixDomainSocketEndPoint(socketPathProvider(serviceProvider));
                     return CreateSocketHttpHandler(socketEndpoint);
                 });
+        }
+
+        /// <summary>
+        /// Configures logging of the lifecycle for an HTTP request.
+        /// </summary>
+        /// <param name="builder">The <see cref="IHttpClientBuilder" />.</param>
+        public static IHttpClientBuilder ConfigureHttpLogging(this IHttpClientBuilder builder)
+        {
+            return builder.RemoveAllLoggers().ConfigureAdditionalHttpMessageHandlers((messageHandlers, serviceProvider) =>
+            {
+                var serviceLogger = serviceProvider.GetService<ILoggerFactory>();
+                if (serviceLogger != default)
+                {
+                    messageHandlers.Insert(0, new LoggingScopeMessageHandler(
+                        serviceLogger.CreateLogger("Consul.Extensions.ContainerInspector.Core.HttpClient.LogicalHandler")));
+
+                    // We want this handler to be last so we can log details about the request after
+                    // service discovery and security happen.
+                    messageHandlers.Add(new LoggingMessageHandler(
+                        serviceLogger.CreateLogger("Consul.Extensions.ContainerInspector.Core.HttpClient.ClientHandler")));
+                }
+            });
         }
 
         private static SocketsHttpHandler CreateSocketHttpHandler(UnixDomainSocketEndPoint endpoint)
