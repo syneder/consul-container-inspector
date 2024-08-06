@@ -41,7 +41,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal.Models
             /// <summary>
             /// Gets or sets the Docker container identifier.
             /// </summary>
-            [JsonPropertyName("Container")]
+            [JsonPropertyName("container")]
             public string? ContainerId { get; set; }
         }
     }
