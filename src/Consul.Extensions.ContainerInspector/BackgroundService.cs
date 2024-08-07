@@ -13,7 +13,7 @@ namespace Consul.Extensions.ContainerInspector
         IDockerInspector dockerInspector,
         ILogger<BackgroundService>? serviceLogger) : Microsoft.Extensions.Hosting.BackgroundService
     {
-        private readonly Dictionary<string, ServiceRegistration> _registeredServices = [];
+        private readonly Dictionary<string, ServiceRegistration> _cache = [];
         private readonly HashSet<string> _containersId = [];
 
         private CancellationToken _cancellationToken = CancellationToken.None;
@@ -37,7 +37,7 @@ namespace Consul.Extensions.ContainerInspector
                 {
                     serviceLogger?.ServiceDoesNotContainContainerId(service.Id, service.Name);
                 }
-                else if (!_registeredServices.TryAdd(containerId, service))
+                else if (!_cache.TryAdd(containerId, service))
                 {
                     serviceLogger?.ServiceContainsDuplicateContainerId(containerId, service.Id, service.Name);
                     await UnregisterServiceAsync(service);
@@ -46,26 +46,26 @@ namespace Consul.Extensions.ContainerInspector
 
             await foreach (var inspectorEvent in dockerInspector.InspectAsync(_cancellationToken))
             {
+                if (inspectorEvent.Type == DockerInspectorEventType.ContainersInspectionCompleted)
+                {
+                    // The ContainersInspectionCompleted inspector event occurs only once, when the
+                    // inspector completes inspecting all running containers. All registered Consul
+                    // services with Docker container identifiers for which the inspector did not
+                    // return information must be unregistered.
+                    foreach (var data in _cache.Where(data => !_containersId.Contains(data.Key)))
+                    {
+                        await UnregisterServiceAsync(data.Value);
+                    }
+
+                    continue;
+                }
+
                 await ProcessDockerInspectorEventAsync(inspectorEvent);
             }
         }
 
         private async Task ProcessDockerInspectorEventAsync(DockerInspectorEvent inspectorEvent)
         {
-            if (inspectorEvent.Type == DockerInspectorEventType.ContainersInspectionCompleted)
-            {
-                // The ContainersInspectionCompleted inspector event occurs only once, when the
-                // inspector completes inspecting all running containers. All registered Consul
-                // services with Docker container identifiers for which the inspector did not
-                // return information must be unregistered.
-                foreach (var data in _registeredServices.Where(data => !_containersId.Contains(data.Key)))
-                {
-                    await UnregisterServiceAsync(data.Value);
-                }
-
-                return;
-            }
-
             if (inspectorEvent.Descriptor == default)
             {
                 // The descriptor can only be null for an ContainersInspectionCompleted Docker
@@ -73,58 +73,62 @@ namespace Consul.Extensions.ContainerInspector
                 throw new InvalidOperationException("The descriptor in the inspector event is null.");
             }
 
-            var containerId = inspectorEvent.Descriptor.ContainerId;
-            if (_registeredServices.TryGetValue(containerId, out var registeredService))
+            _cache.TryGetValue(inspectorEvent.Descriptor.ContainerId, out var cachedService);
+
+            if (default == await ProcessDockerInspectorEventAsync())
+            {
+                if (cachedService != default)
+                {
+                    await UnregisterServiceAsync(cachedService, inspectorEvent.Descriptor.ContainerId);
+                }
+
+                _containersId.Remove(inspectorEvent.Descriptor.ContainerId);
+            }
+
+            async Task<ServiceRegistration?> ProcessDockerInspectorEventAsync()
             {
                 if (inspectorEvent.Type == DockerInspectorEventType.ContainerDisposed ||
                     inspectorEvent.Type == DockerInspectorEventType.ContainerPaused)
                 {
-                    await UnregisterServiceAsync(registeredService, containerId);
-
-                    _containersId.Remove(containerId);
-                    return;
+                    return default;
                 }
-            }
 
-            // If there is no information about service registration yet or the name of the
-            // registered service differs from that reported by the Docker inspector, we must create
-            // a new service registration. If in this case a registered service exists, it must be
-            // deleted before registering a new one.
-            var service = registeredService == default || !registeredService.Name.Equals(inspectorEvent.ServiceName)
-                ? CreateServiceRegistration(inspectorEvent, _registeredServices.Values)
-                : CreateServiceRegistration(inspectorEvent, registeredService.Id);
+                // If there is no information about service registration yet or the name of the
+                // registered service differs from that reported by the Docker inspector, we must create
+                // a new service registration. If in this case a registered service exists, it must be
+                // deleted before registering a new one.
+                var service = cachedService == default || !cachedService.Name.Equals(inspectorEvent.ServiceName)
+                    ? CreateServiceRegistration(inspectorEvent)
+                    : CreateServiceRegistration(inspectorEvent, cachedService.Id);
 
-            if (service == default)
-            {
-                if (registeredService != default)
+                if (service == default)
                 {
-                    await consul.UnregisterServiceAsync(registeredService.Id, _cancellationToken);
+                    return default;
                 }
 
-                return;
-            }
+                if (!cachedService?.Id.Equals(service.Id) ?? default)
+                {
+                    serviceLogger?.CannotUseRegisteredServiceId(cachedService!.Id, cachedService.Name, service.Name);
+                    await UnregisterServiceAsync(cachedService!, inspectorEvent.Descriptor.ContainerId);
+                }
 
-            if (!(registeredService == default || registeredService.Id.Equals(service.Id)))
-            {
-                serviceLogger?.CannotUseRegisteredServiceId(registeredService.Id, registeredService.Name, service.Name);
-                await consul.UnregisterServiceAsync(registeredService.Id, _cancellationToken);
-            }
+                await RegisterServiceAsync(service, inspectorEvent.Descriptor.ContainerId);
+                _containersId.Add(inspectorEvent.Descriptor.ContainerId);
 
-            await RegisterServiceAsync(service, containerId);
-            _containersId.Add(containerId);
+                return service;
+            }
         }
 
         /// <summary>
-        /// Unregisters the specified service from Consul and removes the service registration from the cache.
+        /// Unregisters the specified service from Consul and removes the service registration
+        /// from the cache if <paramref name="containerId"/> is specified.
         /// </summary>
         private async Task UnregisterServiceAsync(ServiceRegistration service, string? containerId = default)
         {
-            await consul.UnregisterServiceAsync(service.Id, _cancellationToken);
-            serviceLogger?.ServiceUnregistered(service, containerId);
-
-            if (containerId != default)
+            if (containerId == default || _cache.Remove(containerId))
             {
-                _registeredServices.Remove(containerId);
+                await consul.UnregisterServiceAsync(service.Id, _cancellationToken);
+                serviceLogger?.ServiceUnregistered(service.Id, service.Name);
             }
         }
 
@@ -133,18 +137,15 @@ namespace Consul.Extensions.ContainerInspector
         /// </summary>
         private async Task RegisterServiceAsync(ServiceRegistration service, string containerId)
         {
-            await consul.RegisterServiceAsync(service, _cancellationToken);
+            await consul.RegisterServiceAsync(_cache[containerId] = service, _cancellationToken);
             serviceLogger?.ServiceRegistered(service);
-
-            _registeredServices[containerId] = service;
         }
 
         /// <summary>
         /// Creates a <see cref="ServiceRegistration" /> using information from the Docker inspector event.
         /// </summary>
         /// <param name="services">List of registered services to create a unique identifier.</param>
-        private ServiceRegistration? CreateServiceRegistration(
-            DockerInspectorEvent inspectorEvent, IEnumerable<ServiceRegistration> services)
+        private ServiceRegistration? CreateServiceRegistration(DockerInspectorEvent inspectorEvent)
         {
             if ((inspectorEvent.ServiceName?.Length ?? 0) == 0)
             {
@@ -152,7 +153,7 @@ namespace Consul.Extensions.ContainerInspector
             }
 
             var serviceId = inspectorEvent.ServiceName!.Replace('_', '-');
-            if (!ContainsServiceId(serviceId, services))
+            if (!ContainsServiceId(serviceId, _cache.Values))
             {
                 return CreateServiceRegistration(inspectorEvent, serviceId);
             }
@@ -163,7 +164,7 @@ namespace Consul.Extensions.ContainerInspector
             // a unique number to the identifier, starting with _2. To find a unique number, the
             // background service looks for any missing unique number equal to or greater than 2
             // or next after the largest.
-            var serviceIndexes = services.Select(service =>
+            var serviceIndexes = _cache.Values.Select(service =>
             {
                 var separatorPosition = service.Id.LastIndexOf('_');
                 if (separatorPosition < 0)

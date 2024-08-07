@@ -36,16 +36,10 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         [LoggerMessage(104, LogLevel.Debug, "Detected changes in network configurations in the Docker container with identifier {containerId}")]
         private static partial void DockerContainerNetworkConfigurationChanged(this ILogger serviceLogger, string containerId);
 
-        [LoggerMessage(200, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' unregistered")]
-        private static partial void ServiceUnregistered(this ILogger serviceLogger, string serviceId, string serviceName);
-
-        [LoggerMessage(201, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' unregistered because the corresponding Docker container with identifier {containerId} has been suspended, stopped, unhealthy or died")]
-        private static partial void ServiceUnregistered(this ILogger serviceLogger, string containerId, string serviceId, string serviceName);
-
-        [LoggerMessage(202, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' has been registered or updated")]
+        [LoggerMessage(200, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' has been registered or updated")]
         private static partial void ServiceRegistered(this ILogger serviceLogger, string serviceId, string serviceName);
 
-        [LoggerMessage(203, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' has been registered or updated with IP address {address}")]
+        [LoggerMessage(201, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' has been registered or updated with IP address {address}")]
         private static partial void ServiceRegistered(this ILogger serviceLogger, string serviceId, string serviceName, string address);
 
         [LoggerMessage(20, LogLevel.Trace, "The Docker client received a message about a new Docker event. Event content: {eventContent}")]
@@ -98,6 +92,9 @@ namespace Consul.Extensions.ContainerInspector.Extensions
 
         [LoggerMessage(143, LogLevel.Debug, "The IP address of the service named '{serviceName}' cannot be determined for container identifier {containerId} because this container has multiple IP addresses assigned to it")]
         public static partial void CannotUseMultipleServiceIPAddresses(this ILogger serviceLogger, string containerId, string serviceName);
+
+        [LoggerMessage(240, LogLevel.Information, "The Consul service '{serviceName}' with identifier '{serviceId}' unregistered")]
+        public static partial void ServiceUnregistered(this ILogger serviceLogger, string serviceId, string serviceName);
 
         [LoggerMessage(440, LogLevel.Error, "The same Docker container identifier {containerId} is specified for multiple registered Consul services, so the registered service '{serviceName}' with identifier '{serviceId}' will be unregistered")]
         public static partial void ServiceContainsDuplicateContainerId(this ILogger serviceLogger, string containerId, string serviceId, string serviceName);
@@ -173,17 +170,6 @@ namespace Consul.Extensions.ContainerInspector.Extensions
             }
 
             serviceLogger.ServiceRegistered(service.Id, service.Name, service.Address);
-        }
-
-        public static void ServiceUnregistered(this ILogger serviceLogger, ServiceRegistration service, string? containerId = default)
-        {
-            if (containerId == default)
-            {
-                serviceLogger.ServiceUnregistered(service.Id, service.Name);
-                return;
-            }
-
-            serviceLogger.ServiceUnregistered(service.Id, service.Name, containerId);
         }
 
         private static string? SerializeContainerNetworks(DockerContainer container)

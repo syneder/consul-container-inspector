@@ -3,7 +3,6 @@ using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -55,7 +54,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                 if (container == default)
                 {
-                    throw new UnreachableException();
+                    return default;
                 }
 
                 var containerLabels = container.Configuration.Labels;

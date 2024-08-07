@@ -39,6 +39,15 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             };
         }
 
+        /// <summary>
+        /// Returns true if the compared container networks are equal, false otherwise.
+        /// </summary>
+        private static bool CompareContainerNetworks(ContainerDescriptor containerDescriptor, DockerContainer container)
+        {
+            return !containerDescriptor.Container.Networks.Except(container.Networks).Concat(
+                container.Networks.Except(containerDescriptor.Container.Networks)).Any();
+        }
+
         private class Inspector
         {
             private readonly DockerInspectorConfiguration _configuration;
@@ -89,6 +98,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 // containers at this time.
                 yield return new DockerInspectorEvent(DockerInspectorEventType.ContainersInspectionCompleted);
 
+                DockerInspectorEvent? inspectorEvent;
                 await foreach (var containerEvent in _docker.MonitorAsync(currentDate, _cancellationToken))
                 {
                     if (!_supportedActions.Contains(containerEvent.EventAction))
@@ -99,14 +109,14 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         continue;
                     }
 
-                    await foreach (var inspectorEvent in InspectAsync(containerEvent))
+                    if ((inspectorEvent = await InspectAsync(containerEvent)) != default)
                     {
                         yield return inspectorEvent;
                     }
                 }
             }
 
-            private async IAsyncEnumerable<DockerInspectorEvent> InspectAsync(DockerContainerEvent containerEvent)
+            private async Task<DockerInspectorEvent?> InspectAsync(DockerContainerEvent containerEvent)
             {
                 // If possible, it is necessary to take information about the container from the
                 // local cache. But if there is no information about the container in the cache yet,
@@ -119,9 +129,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     if (containerEvent.EventAction == "die")
                     {
                         _inspectorLogger?.CannotInspectDisposedDockerContainer(containerEvent.ContainerId);
-
-                        yield return CreateInspectorDisposingEvent(containerEvent.ContainerId);
-                        yield break;
+                        return CreateInspectorDisposingEvent(containerEvent.ContainerId);
                     }
 
                     var container = await _docker.GetContainerAsync(containerEvent.ContainerId, _cancellationToken);
@@ -129,17 +137,22 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     {
                         _inspectorLogger?.CannotInspectNotExistedDockerContainer(containerEvent.ContainerId);
 
-                        yield return CreateInspectorDisposingEvent(containerEvent.ContainerId);
-                        yield break;
+                        // This code can only be reachable if Docker events are processed more
+                        // slowly than new events are coming in. For example, if a Docker container
+                        // starts and immediately dies. It is possible to ignore this and wait for
+                        // the "die" event.
+                        return default;
                     }
 
                     descriptor = await InspectContainerAsync(container);
                     if ((_containerDescriptors[container.Id] = descriptor).ServiceName?.Length > 0)
                     {
                         _inspectorLogger?.DockerInspectorDefinedServiceName(container.Id, descriptor.ServiceName!);
-
-                        yield return descriptor.CreateInspectorEvent(DockerInspectorEventType.ContainerDetected);
                     }
+                }
+                else if (containerEvent.EventAction == "die")
+                {
+                    _containerDescriptors.Remove(containerEvent.ContainerId);
                 }
 
                 if (containerEvent.EventType == "network")
@@ -150,33 +163,26 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     if (cachedDescriptor?.ServiceName?.Length > 0)
                     {
                         var container = await _docker.GetContainerAsync(containerEvent.ContainerId, _cancellationToken);
-                        if (container == default)
+                        if (container == default || CompareContainerNetworks(cachedDescriptor, container))
                         {
-                            _inspectorLogger?.CannotInspectNotExistedDockerContainer(containerEvent.ContainerId);
-                            _containerDescriptors.Remove(cachedDescriptor.Container.Id);
-
-                            yield return CreateInspectorDisposingEvent(containerEvent.ContainerId);
-                            yield break;
+                            return default;
                         }
 
                         _containerDescriptors[container.Id] = await InspectContainerAsync(container);
-                        if (cachedDescriptor.Container.Networks.Except(container.Networks).Any())
-                        {
-                            _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
-                                container.Id, container, cachedDescriptor.Container);
 
-                            yield return _containerDescriptors[container.Id].CreateInspectorEvent(
-                                DockerInspectorEventType.ContainerNetworksUpdated);
-                        }
+                        _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
+                            container.Id, container, cachedDescriptor.Container);
+
+                        return _containerDescriptors[container.Id].CreateInspectorEvent(
+                            DockerInspectorEventType.ContainerNetworksUpdated);
                     }
-
-                    yield break;
                 }
-
-                if ((descriptor ??= cachedDescriptor)!.ServiceName?.Length > 0)
+                else if ((descriptor ??= cachedDescriptor)?.ServiceName?.Length > 0)
                 {
-                    yield return descriptor!.CreateInspectorEvent(_inspectorEventTypeMap[containerEvent.EventAction]);
+                    return descriptor!.CreateInspectorEvent(_inspectorEventTypeMap[containerEvent.EventAction]);
                 }
+
+                return default;
             }
 
             private async IAsyncEnumerable<ContainerDescriptor> InspectContainersAsync(DockerContainer[] containers)
