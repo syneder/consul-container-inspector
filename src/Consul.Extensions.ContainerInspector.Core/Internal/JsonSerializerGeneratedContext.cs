@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal;
 
+[JsonSerializable(typeof(ContainerCredentials))]
 [JsonSerializable(typeof(ServiceRegistration))]
 [JsonSerializable(typeof(InspectedDockerResponse))]
 [JsonSerializable(typeof(DockerEventResponse))]

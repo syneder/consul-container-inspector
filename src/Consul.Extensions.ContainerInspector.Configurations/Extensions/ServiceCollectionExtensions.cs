@@ -21,6 +21,9 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddOptions<ConsulConfiguration>()
                 .BindConfiguration(ConfigurationBuilderExtensions.ConsulConfigurationSection);
 
+            services.AddOptions<ContainerCredentialsConfiguration>()
+                .BindConfiguration(ConfigurationBuilderExtensions.ContainerCredentialsConfigurationSection);
+
             services.AddOptions<DockerConfiguration>()
                 .BindConfiguration(ConfigurationBuilderExtensions.DockerConfigurationSection);
 
@@ -42,6 +45,7 @@ namespace Microsoft.Extensions.DependencyInjection
             });
 
             services.TryAddSingleton(GetRequiredOptions<ConsulConfiguration>);
+            services.TryAddSingleton(GetRequiredOptions<ContainerCredentialsConfiguration>);
             services.TryAddSingleton(GetRequiredOptions<DockerConfiguration>);
             services.TryAddSingleton(GetRequiredOptions<DockerInspectorConfiguration>);
             services.TryAddSingleton(GetRequiredOptions<ManagedInstanceRegistration>);

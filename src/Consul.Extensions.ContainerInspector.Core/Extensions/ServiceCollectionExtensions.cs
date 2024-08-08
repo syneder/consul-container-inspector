@@ -38,6 +38,11 @@ namespace Microsoft.Extensions.DependencyInjection
                     return configuration.SocketPath ?? "/var/run/docker.sock";
                 });
 
+            services
+                .AddHttpClient(nameof(ContainerCredentialsProvider))
+                .ConfigureHttpClient(ContainerCredentialsProvider.ConfigureHttpClient)
+                .ConfigureHttpLogging();
+
             services.AddHttpClient(nameof(IAmazonClient)).ConfigureHttpLogging();
             return services;
         }

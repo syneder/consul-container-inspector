@@ -3,7 +3,7 @@
     /// <summary>
     /// Describes the AWS credentials.
     /// </summary>
-    public class AmazonCredentials
+    public class ContainerCredentials
     {
         /// <summary>
         /// Gets or sets the API access token.

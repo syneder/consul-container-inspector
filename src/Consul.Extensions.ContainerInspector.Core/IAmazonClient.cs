@@ -13,7 +13,7 @@ namespace Consul.Extensions.ContainerInspector.Core
         /// <see cref="Task{AmazonCredentials?}" /> that completes with obtained or cached AWS
         /// credentials, or null if the credentials cannot be obtained.
         /// </returns>
-        Task<AmazonCredentials?> GetCredentialsAsync(CancellationToken cancellationToken);
+        Task<ContainerCredentials?> GetCredentialsAsync(CancellationToken cancellationToken);
 
         /// <summary>
         /// Sends an API request to AWS to describe ECS tasks with the specified ARNs.

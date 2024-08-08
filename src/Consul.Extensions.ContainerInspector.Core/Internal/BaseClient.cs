@@ -26,7 +26,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         {
             var requestUri = string.Join('/', ((string[])[BaseResourceURI, resourceUri]).Except([string.Empty]));
             var requestMessageInvoker = clientFactory.CreateClient(name);
-            return new(requestMessageInvoker, new HttpRequestMessage(method, '/' + requestUri));
+            return new(requestMessageInvoker, new HttpRequestMessage(method, '/' + requestUri.TrimStart('/')));
         }
 
         protected class HttpRequest(HttpClient messageInvoker, HttpRequestMessage message) : IDisposable

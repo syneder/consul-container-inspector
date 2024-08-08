@@ -15,6 +15,11 @@ namespace Microsoft.Extensions.Configuration
         public const string ConsulConfigurationSection = "consul";
 
         /// <summary>
+        /// Default configuration section where the read container credentials configurations will be located.
+        /// </summary>
+        public static readonly string ContainerCredentialsConfigurationSection = ConfigurationPath.Combine("amazon", "credentials");
+
+        /// <summary>
         /// Default configuration section where the read Docker configurations will be located.
         /// </summary>
         public const string DockerConfigurationSection = "docker";
@@ -44,6 +49,7 @@ namespace Microsoft.Extensions.Configuration
             _configurationProviderFactories =
             [
                 () => new ConsulConfigurationProvider(ConsulConfigurationFilePath, ConsulConfigurationSection),
+                () => new ContainerCredentialsConfigurationProvider(ContainerCredentialsConfigurationSection),
                 () => new DockerConfigurationProvider(DockerConfigurationSection),
                 () => new DockerInspectorConfigurationProvider(DockerInspectorConfigurationSection),
                 () => new ManagedInstanceRegistrationProvider(ManagedInstanceRegistrationFilePath, ManagedInstanceConfigurationSection),
