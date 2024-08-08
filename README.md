@@ -37,5 +37,5 @@ the Consul configuration from a shared folder or volume at `/consul/config`. The
 the Consul configuration will be read can be overridden by specifying the corresponding path in the
 `CONSUL_CONFIG_PATH` environment variable. Or the path to the Consul unix socket can be overridden
 by passing the Consul configuration in base64 format in the `CONSUL_CONFIG` environment variable.
-Or the path to the Unix Consul socket can be overridden using the `--consul:socket` command line
+Or the path to the Consul unix socket can be overridden using the `--consul:socket` command line
 argument.
