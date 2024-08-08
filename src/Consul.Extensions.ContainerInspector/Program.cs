@@ -44,9 +44,14 @@
                 {
                     serviceLogging.SetMinimumLevel(LogLevel.Trace);
                 }
-                else if (context.Configuration.GetSection("debug").Exists())
+                else
                 {
-                    serviceLogging.SetMinimumLevel(LogLevel.Debug);
+                    if (context.Configuration.GetSection("debug").Exists())
+                    {
+                        serviceLogging.SetMinimumLevel(LogLevel.Debug);
+                    }
+
+                    serviceLogging.AddFilter("Microsoft.Extensions.Http.DefaultHttpClientFactory", LogLevel.None);
                 }
             });
 

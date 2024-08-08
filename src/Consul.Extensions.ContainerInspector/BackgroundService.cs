@@ -33,14 +33,21 @@ namespace Consul.Extensions.ContainerInspector
             // missing, the service will be unregistered.
             foreach (var service in await consul.GetServicesAsync(_cancellationToken))
             {
-                if (!service.Metadata.TryGetValue(ContainerAttributeName, out var containerId))
+                using (serviceLogger?.CreateServiceScope(service.Id))
                 {
-                    serviceLogger?.ServiceDoesNotContainContainerId(service.Id, service.Name);
-                }
-                else if (!_cache.TryAdd(containerId, service))
-                {
-                    serviceLogger?.ServiceContainsDuplicateContainerId(containerId, service.Id, service.Name);
-                    await UnregisterServiceAsync(service);
+                    if (!service.Metadata.TryGetValue(ContainerAttributeName, out var containerId))
+                    {
+                        serviceLogger?.ServiceDoesNotContainContainerId();
+                    }
+                    else if (!_cache.TryAdd(containerId, service))
+                    {
+                        using (serviceLogger?.CreateContainerScope(containerId))
+                        {
+                            serviceLogger?.ServiceContainsDuplicateContainerId();
+                        }
+
+                        await UnregisterServiceAsync(service);
+                    }
                 }
             }
 
@@ -54,7 +61,10 @@ namespace Consul.Extensions.ContainerInspector
                     // return information must be unregistered.
                     foreach (var data in _cache.Where(data => !_containersId.Contains(data.Key)))
                     {
-                        await UnregisterServiceAsync(data.Value);
+                        using (serviceLogger?.CreateServiceScope(data.Value.Id))
+                        {
+                            await UnregisterServiceAsync(data.Value);
+                        }
                     }
 
                     continue;
@@ -79,7 +89,10 @@ namespace Consul.Extensions.ContainerInspector
             {
                 if (cachedService != default)
                 {
-                    await UnregisterServiceAsync(cachedService, inspectorEvent.Descriptor.ContainerId);
+                    using (serviceLogger?.CreateServiceScope(cachedService.Id))
+                    {
+                        await UnregisterServiceAsync(cachedService, inspectorEvent.Descriptor.ContainerId);
+                    }
                 }
 
                 _containersId.Remove(inspectorEvent.Descriptor.ContainerId);
@@ -106,15 +119,21 @@ namespace Consul.Extensions.ContainerInspector
                     return default;
                 }
 
-                if (!cachedService?.Id.Equals(service.Id) ?? default)
+                if (cachedService != default && !cachedService.Id.Equals(service.Id))
                 {
-                    serviceLogger?.CannotUseRegisteredServiceId(cachedService!.Id, cachedService.Name, service.Name);
-                    await UnregisterServiceAsync(cachedService!, inspectorEvent.Descriptor.ContainerId);
+                    using (serviceLogger?.CreateServiceScope(cachedService.Id))
+                    {
+                        serviceLogger?.RegisteredServiceIdCannotBeUsed();
+                        await UnregisterServiceAsync(cachedService, inspectorEvent.Descriptor.ContainerId);
+                    }
                 }
 
-                await RegisterServiceAsync(service, inspectorEvent.Descriptor.ContainerId);
-                _containersId.Add(inspectorEvent.Descriptor.ContainerId);
+                using (serviceLogger?.CreateServiceScope(service.Id))
+                {
+                    await RegisterServiceAsync(service, inspectorEvent.Descriptor.ContainerId);
+                }
 
+                _containersId.Add(inspectorEvent.Descriptor.ContainerId);
                 return service;
             }
         }
@@ -128,7 +147,7 @@ namespace Consul.Extensions.ContainerInspector
             if (containerId == default || _cache.Remove(containerId))
             {
                 await consul.UnregisterServiceAsync(service.Id, _cancellationToken);
-                serviceLogger?.ServiceUnregistered(service.Id, service.Name);
+                serviceLogger?.ServiceUnregistered();
             }
         }
 
@@ -199,7 +218,14 @@ namespace Consul.Extensions.ContainerInspector
                 throw new InvalidOperationException("The service name or descriptor in inspector event is null or empty.");
             }
 
-            return CreateServiceRegistration(inspectorEvent.Descriptor.Container, inspectorEvent.ServiceName!, serviceId);
+            using (serviceLogger?.CreateServiceScope(serviceId))
+            {
+                using (serviceLogger?.CreateContainerScope(inspectorEvent.Descriptor.ContainerId))
+                {
+                    return CreateServiceRegistration(
+                        inspectorEvent.Descriptor.Container, inspectorEvent.ServiceName!, serviceId);
+                }
+            }
         }
 
         /// <summary>
@@ -213,7 +239,7 @@ namespace Consul.Extensions.ContainerInspector
             {
                 if (!(container.Networks?.ContainsKey("host") ?? default))
                 {
-                    serviceLogger?.CannotDetermineServiceIPAddress(name, container.Id);
+                    serviceLogger?.CannotDetermineServiceIPAddress();
                     return default;
                 }
 
@@ -231,7 +257,7 @@ namespace Consul.Extensions.ContainerInspector
             }
             else if (serviceAddresses.Count > 1)
             {
-                serviceLogger?.CannotUseMultipleServiceIPAddresses(name, container.Id);
+                serviceLogger?.CannotUseMultipleServiceIPAddresses();
                 return default;
             }
 

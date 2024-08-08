@@ -124,18 +124,24 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 ContainerDescriptor? descriptor = default;
                 if (!_containerDescriptors.TryGetValue(containerEvent.ContainerId, out var cachedDescriptor))
                 {
-                    _inspectorLogger?.DockerContainerDescriptorNotFoundInCache(containerEvent.ContainerId);
-
-                    if (containerEvent.EventAction == "die")
+                    using (_inspectorLogger?.CreateContainerScope(containerEvent.ContainerId))
                     {
-                        _inspectorLogger?.CannotInspectDisposedDockerContainer(containerEvent.ContainerId);
-                        return CreateInspectorDisposingEvent(containerEvent.ContainerId);
+                        _inspectorLogger?.DockerContainerDescriptorNotFoundInCache();
+
+                        if (containerEvent.EventAction == "die")
+                        {
+                            _inspectorLogger?.CannotInspectDisposedDockerContainer();
+                            return CreateInspectorDisposingEvent(containerEvent.ContainerId);
+                        }
                     }
 
                     var container = await _docker.GetContainerAsync(containerEvent.ContainerId, _cancellationToken);
                     if (container == default)
                     {
-                        _inspectorLogger?.CannotInspectNotExistedDockerContainer(containerEvent.ContainerId);
+                        using (_inspectorLogger?.CreateContainerScope(containerEvent.ContainerId))
+                        {
+                            _inspectorLogger?.CannotInspectNotExistedDockerContainer();
+                        }
 
                         // This code can only be reachable if Docker events are processed more
                         // slowly than new events are coming in. For example, if a Docker container
@@ -147,7 +153,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     descriptor = await InspectContainerAsync(container);
                     if ((_containerDescriptors[container.Id] = descriptor).ServiceName?.Length > 0)
                     {
-                        _inspectorLogger?.DockerInspectorDefinedServiceName(container.Id, descriptor.ServiceName!);
+                        using (_inspectorLogger?.CreateContainerScope(container.Id))
+                        {
+                            _inspectorLogger?.DockerInspectorDefinedServiceName(descriptor.ServiceName!);
+                        }
                     }
                 }
                 else if (containerEvent.EventAction == "die")
@@ -170,8 +179,11 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                         _containerDescriptors[container.Id] = await InspectContainerAsync(container);
 
-                        _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
-                            container.Id, container, cachedDescriptor.Container);
+                        using (_inspectorLogger?.CreateContainerScope(container.Id))
+                        {
+                            _inspectorLogger?.DockerContainerNetworkConfigurationChanged(
+                                container, cachedDescriptor.Container);
+                        }
 
                         return _containerDescriptors[container.Id].CreateInspectorEvent(
                             DockerInspectorEventType.ContainerNetworksUpdated);
@@ -200,8 +212,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         continue;
                     }
 
-                    _inspectorLogger?.DockerInspectorDefinedServiceName(
-                        container.Id, _configuration.Labels.ServiceLabel, serviceName);
+                    using (_inspectorLogger?.CreateContainerScope(container.Id))
+                    {
+                        _inspectorLogger?.DockerInspectorDefinedServiceName(serviceName, _configuration.Labels.ServiceLabel);
+                    }
 
                     yield return new ContainerDescriptor(container, serviceName);
                 }
@@ -209,26 +223,29 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 var arns = new Dictionary<AmazonTaskArn, ContainerDescriptor>();
                 while (containersQueue.TryDequeue(out var container))
                 {
-                    try
+                    using (_inspectorLogger?.CreateContainerScope(container.Id))
                     {
-                        var parsedArn = AmazonTaskArn.GetTaskArn(container);
-                        if (parsedArn == default)
+                        try
                         {
-                            continue;
-                        }
+                            var parsedArn = AmazonTaskArn.GetTaskArn(container);
+                            if (parsedArn == default)
+                            {
+                                continue;
+                            }
 
-                        if (arns.Keys.Any(data => data.Arn.Equals(parsedArn.Arn, StringComparison.OrdinalIgnoreCase)))
+                            if (arns.Keys.Any(data => data.Arn.Equals(parsedArn.Arn, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                _inspectorLogger?.DockerInspectorDetectedDuplicateTaskArn(parsedArn.Arn);
+                                continue;
+                            }
+
+                            _inspectorLogger?.DockerInspectorDetectedTaskArn(parsedArn.Arn);
+                            arns.Add(parsedArn, new ContainerDescriptor(container, default));
+                        }
+                        catch (TaskArnParseException ex)
                         {
-                            _inspectorLogger?.DockerInspectorDetectedDuplicateTaskArn(parsedArn.Arn);
-                            continue;
+                            _inspectorLogger?.CannotParseTaskArn(ex.TaskArn);
                         }
-
-                        _inspectorLogger?.DockerInspectorDetectedTaskArn(container.Id, parsedArn.Arn);
-                        arns.Add(parsedArn, new ContainerDescriptor(container, default));
-                    }
-                    catch (TaskArnParseException ex)
-                    {
-                        _inspectorLogger?.CannotParseTaskArn(container.Id, ex.TaskArn);
                     }
                 }
 
@@ -245,8 +262,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 {
                     if (arns.TryGetValue(describedTask.Arn, out var containerDescriptor))
                     {
-                        _inspectorLogger?.DockerInspectorDefinedServiceName(
-                            containerDescriptor.Container.Id, describedTask);
+                        using (_inspectorLogger?.CreateContainerScope(containerDescriptor.Container.Id))
+                        {
+                            _inspectorLogger?.DockerInspectorDefinedServiceName(describedTask);
+                        }
 
                         yield return new ContainerDescriptor(containerDescriptor.Container, describedTask.Group);
                     }

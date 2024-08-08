@@ -45,48 +45,51 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         {
             var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json");
 
-            try
+            using (clientLogger?.CreateContainerScope(containerId))
             {
-                // Compared to the GetContainersAsync method, this method returns information about
-                // the container regardless of whether it is running.
-                var container = await request.ExecuteRequestAsync(
-                    JsonSerializerGeneratedContext.Default.InspectedDockerResponse, cancellationToken);
-
-                if (container == default)
+                try
                 {
+                    // Compared to the GetContainersAsync method, this method returns information about
+                    // the container regardless of whether it is running.
+                    var container = await request.ExecuteRequestAsync(
+                        JsonSerializerGeneratedContext.Default.InspectedDockerResponse, cancellationToken);
+
+                    if (container == default)
+                    {
+                        return default;
+                    }
+
+                    var containerLabels = container.Configuration.Labels;
+                    if (containerLabels.Count > 0)
+                    {
+                        clientLogger?.DockerContainerContainsLabels(containerLabels);
+                    }
+
+                    foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
+                    {
+                        if (!containerLabels.TryGetValue(data[0], out string? value))
+                        {
+                            clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0]);
+                            return default;
+                        }
+
+                        // The expected label can be specified in the format name=value. In such cases, in
+                        // addition to checking whether the label is present in the container, we need to
+                        // check whether the value of the container's label matches the expected value.
+                        if (data.Length == 2 && data[1] != value)
+                        {
+                            clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0], data[1]);
+                            return default;
+                        }
+                    }
+
+                    return Convert(container);
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+                {
+                    clientLogger?.DockerContainerNotFound();
                     return default;
                 }
-
-                var containerLabels = container.Configuration.Labels;
-                if (containerLabels.Count > 0)
-                {
-                    clientLogger?.DockerContainerContainsLabels(containerId, containerLabels);
-                }
-
-                foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
-                {
-                    if (!containerLabels.TryGetValue(data[0], out string? value))
-                    {
-                        clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0]);
-                        return default;
-                    }
-
-                    // The expected label can be specified in the format name=value. In such cases, in
-                    // addition to checking whether the label is present in the container, we need to
-                    // check whether the value of the container's label matches the expected value.
-                    if (data.Length == 2 && data[1] != value)
-                    {
-                        clientLogger?.DockerContainerDoesNotContainExpectedLabel(containerId, data[0], data[1]);
-                        return default;
-                    }
-                }
-
-                return Convert(container);
-            }
-            catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
-            {
-                clientLogger?.DockerContainerNotFound(containerId);
-                return default;
             }
         }
 
@@ -114,6 +117,11 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                 if (containerEvent != default && _supportedEventTypes.Contains(containerEvent.Type))
                 {
+                    if (containerEvent.Action.StartsWith("exec_"))
+                    {
+                        continue;
+                    }
+
                     clientLogger?.DockerSentEventMessage(content);
 
                     yield return new DockerContainerEvent
