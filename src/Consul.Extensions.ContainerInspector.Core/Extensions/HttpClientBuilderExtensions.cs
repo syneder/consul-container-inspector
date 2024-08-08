@@ -15,12 +15,12 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <param name="builder">The <see cref="IHttpClientBuilder" />.</param>
         /// <param name="socketPathProvider">A delegate used to provide the path to a unix socket.</param>
         public static IHttpClientBuilder ConfigureUnixSocket(
-            this IHttpClientBuilder builder, Func<IServiceProvider, string> socketPathProvider)
+            this IHttpClientBuilder builder, string hostname, Func<IServiceProvider, string> socketPathProvider)
         {
             return builder
                 .ConfigureHttpClient(client =>
                 {
-                    client.BaseAddress = new Uri("http://localhost");
+                    client.BaseAddress = new Uri($"http://{hostname}");
                 })
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
                 {

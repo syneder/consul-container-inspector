@@ -23,7 +23,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 .AddHttpClient(nameof(IConsulClient))
                 .ConfigureHttpClient(ConsulClient.ConfigureHttpClient)
                 .ConfigureHttpLogging()
-                .ConfigureUnixSocket(serviceProvider =>
+                .ConfigureUnixSocket("consul", serviceProvider =>
                 {
                     var configuration = serviceProvider.GetRequiredService<ConsulConfiguration>();
                     return configuration.AddressBinding.SocketPath ?? "/consul/run/consul.sock";
@@ -32,7 +32,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services
                 .AddHttpClient(nameof(IDockerClient))
                 .ConfigureHttpLogging()
-                .ConfigureUnixSocket(serviceProvider =>
+                .ConfigureUnixSocket("docker", serviceProvider =>
                 {
                     var configuration = serviceProvider.GetRequiredService<DockerConfiguration>();
                     return configuration.SocketPath ?? "/var/run/docker.sock";
