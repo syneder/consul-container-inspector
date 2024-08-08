@@ -2,14 +2,13 @@
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/syneder/consul-container-inspector/docker-image.yml)
 
 The **container inspector** is a small background service that inspects running Docker
-containers and monitors Docker events to register or unregister services with Consul.
-This service supports container startup, destruction, and health change events, as well
-as container network connection and disconnection events.
+containers and monitors Docker events to register or unregister services in Consul. This
+service supports container startup, destruction, and health change events, as well as
+container network connection and disconnection events.
 
 ## Introduction
 The **container inspector** is designed as a helper service to implement service discovery
-in an Amazon ECS Anywhere cluster. The main conditions for the service to function as a
-service discovery are:
+in an Amazon ECS Anywhere cluster. The main requirements are:
 - **container inspector** must be running on a host that is running the Docker containers
 for which service discovery needs to be enabled;
 - Consul agent must be running on the same host, and access to the Consul agent API must
@@ -33,3 +32,11 @@ addresses {
 }
 ```
 
+> [!NOTE]
+> You can specify a different path to the Consul unix socket. The **container inspector** can read
+> the Consul configuration from a shared folder or volume at `/consul/config`. The path from which
+> the Consul configuration will be read can be overridden by specifying the corresponding path in
+> the `CONSUL_CONFIG_PATH` environment variable. Or the path to the Consul unix socket can be
+> overridden by passing the Consul configuration in base64 format in the `CONSUL_CONFIG` environment
+> variable. Or the path to the Unix Consul socket can be overridden using the `--consul:socket`
+> command line argument.
