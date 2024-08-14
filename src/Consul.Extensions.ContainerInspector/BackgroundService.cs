@@ -74,6 +74,19 @@ namespace Consul.Extensions.ContainerInspector
             }
         }
 
+        public override async Task StopAsync(CancellationToken cancellationToken)
+        {
+            foreach (var serviceRegistration in _cache)
+            {
+                using (serviceLogger?.CreateServiceScope(serviceRegistration.Value.Id))
+                {
+                    await UnregisterServiceAsync(serviceRegistration.Value);
+                }
+            }
+
+            await base.StopAsync(cancellationToken);
+        }
+
         private async Task ProcessDockerInspectorEventAsync(DockerInspectorEvent inspectorEvent)
         {
             if (inspectorEvent.Descriptor == default)
