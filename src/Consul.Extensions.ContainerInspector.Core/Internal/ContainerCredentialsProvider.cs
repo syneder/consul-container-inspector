@@ -1,5 +1,6 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
+using System.Text.Json;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
@@ -8,7 +9,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     /// </summary>
     internal class ContainerCredentialsProvider(
         IHttpClientFactory clientFactory,
-        ContainerCredentialsConfiguration configuration) : BaseClient(nameof(ContainerCredentialsProvider), clientFactory)
+        ContainerCredentialsConfiguration configuration,
+        JsonSerializerOptions serializerOptions) : BaseClient(nameof(ContainerCredentialsProvider), clientFactory)
     {
         /// <summary>
         /// Tries to obtain Amazon credentials, or returns null if not possible.
@@ -23,9 +25,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 return default;
             }
 
-            using var request = CreateRequest(HttpMethod.Get, configuration.ProviderUri!);
-            return UpdateExpiration(await request.ExecuteRequestAsync(
-                JsonSerializerGeneratedContext.Default.ContainerCredentials, cancellationToken));
+            using var request = CreateRequest(HttpMethod.Get, configuration.ProviderUri!, serializerOptions);
+            return UpdateExpiration(await request.ExecuteRequestAsync<ContainerCredentials>(cancellationToken));
         }
 
         /// <summary>

@@ -8,13 +8,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal.Converters
     {
         public override AmazonTaskArn? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            var value = reader.GetString();
-            if (value == default)
-            {
-                return default;
-            }
-
-            return AmazonTaskArn.ParseTaskArn(value);
+            return AmazonTaskArn.ParseTaskArn(reader);
         }
 
         public override void Write(Utf8JsonWriter writer, AmazonTaskArn value, JsonSerializerOptions options)

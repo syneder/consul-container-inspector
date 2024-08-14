@@ -1,4 +1,6 @@
-﻿namespace Consul.Extensions.ContainerInspector.Core.Models
+﻿using System.Text.Json;
+
+namespace Consul.Extensions.ContainerInspector.Core.Models
 {
     public sealed record AmazonTaskArn(string EncodedArn, string ResourceId, string Region, string Cluster)
     {
@@ -32,6 +34,12 @@
             throw new TaskArnParseException(arn);
         }
 
+        public static AmazonTaskArn? ParseTaskArn(Utf8JsonReader reader)
+        {
+            var stringValue = reader.GetString();
+            return stringValue == default ? default : ParseTaskArn(stringValue);
+        }
+
         public bool Equals(AmazonTaskArn? instance)
         {
             if (instance == default)
@@ -53,6 +61,6 @@
 
     public class TaskArnParseException(string arn) : Exception
     {
-        public string TaskArn => arn;
+        public string EncodedArn => arn;
     }
 }

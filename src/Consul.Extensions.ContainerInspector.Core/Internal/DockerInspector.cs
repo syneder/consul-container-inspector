@@ -244,7 +244,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         }
                         catch (TaskArnParseException ex)
                         {
-                            _inspectorLogger?.CannotParseTaskArn(ex.TaskArn);
+                            _inspectorLogger?.CannotParseTaskArn(ex.EncodedArn);
                         }
                     }
                 }

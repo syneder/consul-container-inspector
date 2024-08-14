@@ -15,19 +15,20 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     /// </param>
     internal abstract class BaseClient(string name, IHttpClientFactory clientFactory)
     {
-        protected virtual string BaseResourceURI { get; } = string.Empty;
+        protected virtual string BaseResourceUri { get; } = string.Empty;
 
         /// <summary>
         /// Creates new <see cref="HttpRequest" /> with specified <paramref name="method" />
         /// and <paramref name="resourceUri" />.
         /// </summary>
-        /// <param name="resourceUri">A string representing the resource URI to which
-        /// <see cref="BaseResourceUri" /> may be appended to create the request URI.</param>
+        /// <param name="resourceUri">A string representing the resource Uri to which
+        /// <see cref="BaseResourceUri" /> may be appended to create the request Uri.</param>
         protected HttpRequest CreateRequest(
-            HttpMethod method, string resourceUri, JsonSerializerOptions? serializerOptions = default)
+            HttpMethod method, string resourceUri, JsonSerializerOptions serializerOptions)
         {
-            var requestUri = string.Join('/', ((string[])[BaseResourceURI, resourceUri]).Except([string.Empty]));
-            return CreateRequest(new HttpRequestMessage(method, '/' + requestUri.TrimStart('/')), serializerOptions);
+            var requestUri = string.Join('/', ((string[])[BaseResourceUri, resourceUri]).Except([string.Empty]));
+            var requestMessage = new HttpRequestMessage(method, '/' + requestUri.TrimStart('/'));
+            return CreateRequest(requestMessage, serializerOptions);
         }
 
         /// <summary>
@@ -35,19 +36,21 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         /// and <paramref name="requestUri" />.
         /// </summary>
         protected virtual HttpRequest CreateRequest(
-            HttpMethod method, Uri requestUri, JsonSerializerOptions? serializerOptions = default)
+            HttpMethod method, Uri requestUri, JsonSerializerOptions serializerOptions)
         {
             return CreateRequest(new HttpRequestMessage(method, requestUri), serializerOptions);
         }
 
-        private HttpRequest CreateRequest(HttpRequestMessage requestMessage, JsonSerializerOptions? serializerOptions)
+        private HttpRequest CreateRequest(HttpRequestMessage requestMessage, JsonSerializerOptions serializerOptions)
         {
             var requestMessageInvoker = clientFactory.CreateClient(name);
             return new(requestMessageInvoker, requestMessage, serializerOptions);
         }
 
         protected class HttpRequest(
-            HttpClient messageInvoker, HttpRequestMessage message, JsonSerializerOptions? serializerOptions) : IDisposable
+            HttpClient messageInvoker,
+            HttpRequestMessage message,
+            JsonSerializerOptions serializerOptions) : IDisposable
         {
             public HttpRequestMessage Message => message;
 
@@ -97,18 +100,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     message, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
                 return responseMessage.EnsureSuccessStatusCode();
-            }
-
-            /// <summary>
-            /// Executes the request, reads the contents of the response, and deserializes it into an object.
-            /// </summary>
-            /// <param name="typeMetadata">Metadata about the type to deserialize.</param>
-            public async Task<T?> ExecuteRequestAsync<T>(JsonTypeInfo<T> typeMetadata, CancellationToken cancellationToken)
-            {
-                using var responseMessage = await ExecuteRequestAsync(cancellationToken);
-                using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
-
-                return await JsonSerializer.DeserializeAsync(contentStream, typeMetadata, cancellationToken);
             }
 
             /// <summary>

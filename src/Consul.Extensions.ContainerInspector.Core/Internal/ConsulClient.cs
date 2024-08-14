@@ -1,33 +1,33 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
+using Consul.Extensions.ContainerInspector.Core.Internal.Models;
 using Consul.Extensions.ContainerInspector.Core.Models;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
     /// <summary>
     /// Default implementation of <see cref="IConsulClient" />.
     /// </summary>
-    internal class ConsulClient(IHttpClientFactory clientFactory)
+    internal class ConsulClient(IHttpClientFactory clientFactory, JsonSerializerOptions serializerOptions)
         : BaseClient(nameof(IConsulClient), clientFactory), IConsulClient
     {
-        protected override string BaseResourceURI => "v1";
+        protected override string BaseResourceUri => "v1";
 
         public async Task<IEnumerable<ServiceRegistration>> GetServicesAsync(CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Get, "agent/services");
-            var response = await request.ExecuteRequestAsync(
-                JsonSerializerGeneratedContext.Default.ServiceRegistrationResponseDictionary, cancellationToken);
+            using var request = CreateRequest(HttpMethod.Get, "agent/services", serializerOptions);
+            var response = await request.ExecuteRequestAsync<IDictionary<string, ServiceRegistrationResponse>>(cancellationToken);
 
             return response?.Values ?? [];
         }
 
         public async Task RegisterServiceAsync(ServiceRegistration service, CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Put, "agent/service/register");
-            using var requestContent = JsonContent.Create(
-                service, JsonSerializerGeneratedContext.Default.ServiceRegistration);
+            using var request = CreateRequest(HttpMethod.Put, "agent/service/register", serializerOptions);
+            using var requestContent = JsonContent.Create(service, options: serializerOptions);
 
             request.Message.Content = requestContent;
             using (await request.ExecuteRequestAsync(cancellationToken)) { }
@@ -35,7 +35,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task UnregisterServiceAsync(string serviceId, CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Put, $"agent/service/deregister/{serviceId}");
+            using var request = CreateRequest(HttpMethod.Put, $"agent/service/deregister/{serviceId}", serializerOptions);
             using (await request.ExecuteRequestAsync(cancellationToken)) { }
         }
 

@@ -4,6 +4,7 @@ using Consul.Extensions.ContainerInspector.Core.Internal;
 using Consul.Extensions.ContainerInspector.Core.Internal.Converters;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -56,24 +57,33 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <returns>The <see cref="IServiceCollection"/>.</returns>
         public static IServiceCollection AddCoreServices(this IServiceCollection services)
         {
+            services.AddJsonSerializerOptions();
+
             services.TryAddSingleton<IAmazonClient, AmazonClient>();
             services.TryAddTransient<IConsulClient, ConsulClient>();
             services.TryAddTransient<IDockerClient, DockerClient>();
             services.TryAddTransient<IDockerInspector, DockerInspector>();
 
-            services.AddSingleton(serviceProvider =>
+            return services.ConfigureHttpClients();
+        }
+
+        /// <summary>
+        /// Adds the <see cref="JsonSerializerOptions" /> to the services collection.
+        /// </summary>
+        /// <param name="services">The <see cref="IServiceCollection"/>.</param>
+        /// <returns>The <see cref="IServiceCollection"/>.</returns>
+        public static IServiceCollection AddJsonSerializerOptions(this IServiceCollection services)
+        {
+            return services.AddSingleton(serviceProvider =>
             {
-                var options = new JsonSerializerOptions
+                var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                     TypeInfoResolver = JsonSerializerGeneratedContext.Default,
                 };
 
                 options.Converters.Add(new AmazonTaskArnConverter());
                 return options;
             });
-
-            return services.ConfigureHttpClients();
         }
     }
 }

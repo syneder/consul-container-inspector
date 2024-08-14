@@ -27,7 +27,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal.Models
             /// <summary>
             /// Gets or sets the identifier of the object that is emitted the event.
             /// </summary>
-            [JsonPropertyName("ID")]
             public required string Id { get; set; }
 
             /// <summary>

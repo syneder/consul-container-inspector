@@ -25,7 +25,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         private static readonly MediaTypeHeaderValue _contentType = new("application/x-amz-json-1.1");
 
         private ContainerCredentials? _credentials = default;
-        private ContainerCredentialsProvider? _credentialsProvider = new(clientFactory, configuration);
+        private ContainerCredentialsProvider? _credentialsProvider = new(clientFactory, configuration, serializerOptions);
 
         public async Task<ContainerCredentials?> GetCredentialsAsync(CancellationToken cancellationToken)
         {
@@ -82,7 +82,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                                 Data = new AmazonTaskDescriptionRequest
                                 {
                                     Cluster = clusterGroup.Key,
-                                    Tasks = arnGroup.Select(resourceArn => resourceArn.EncodedArn),
+                                    Tasks = arnGroup,
                                 }
                             };
                         }
@@ -94,7 +94,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         }
 
         protected override HttpRequest CreateRequest(
-            HttpMethod method, Uri requestUri, JsonSerializerOptions? serializerOptions)
+            HttpMethod method, Uri requestUri, JsonSerializerOptions serializerOptions)
         {
             var request = base.CreateRequest(method, requestUri, serializerOptions);
             request.Message.Headers.Add(HeaderKeys.HostHeader, requestUri.Host);

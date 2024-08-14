@@ -8,9 +8,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal;
 [JsonSerializable(typeof(AmazonTaskDescriptionResponse))]
 [JsonSerializable(typeof(ContainerCredentials))]
 [JsonSerializable(typeof(DockerEventResponse))]
-[JsonSerializable(typeof(ServiceRegistration))]
+[JsonSerializable(typeof(IDictionary<string, ServiceRegistrationResponse>))]
+[JsonSerializable(typeof(IDictionary<string, string[]>))]
+[JsonSerializable(typeof(IList<DockerResponse>))]
 [JsonSerializable(typeof(InspectedDockerResponse))]
-[JsonSerializable(typeof(IDictionary<string, string[]>), TypeInfoPropertyName = $"ContainerFilters")]
-[JsonSerializable(typeof(IDictionary<string, ServiceRegistrationResponse>), TypeInfoPropertyName = $"{nameof(ServiceRegistrationResponse)}Dictionary")]
-[JsonSerializable(typeof(IList<DockerResponse>), TypeInfoPropertyName = $"{nameof(DockerResponse)}Collection")]
+[JsonSerializable(typeof(ServiceRegistration))]
 internal partial class JsonSerializerGeneratedContext : JsonSerializerContext { }

@@ -13,6 +13,6 @@
         /// <summary>
         /// Gets or sets the Docker container labels.
         /// </summary>
-        public required Dictionary<string, string> Labels { get; set; }
+        public required IDictionary<string, string> Labels { get; set; }
     }
 }

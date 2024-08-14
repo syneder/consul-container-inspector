@@ -1,4 +1,6 @@
-﻿namespace Consul.Extensions.ContainerInspector.Core.Internal.Models
+﻿using Consul.Extensions.ContainerInspector.Core.Models;
+
+namespace Consul.Extensions.ContainerInspector.Core.Internal.Models
 {
     /// <summary>
     /// Describes a request content model for describing AWS ECS ​​tasks.
@@ -13,6 +15,6 @@
         /// <summary>
         /// Gets or sets an enumeration of the ARNs of the tasks that need to be described.
         /// </summary>
-        public required IEnumerable<string> Tasks { get; set; }
+        public required IEnumerable<AmazonTaskArn> Tasks { get; set; }
     }
 }

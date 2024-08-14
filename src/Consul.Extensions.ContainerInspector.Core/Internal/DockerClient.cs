@@ -16,20 +16,19 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     internal class DockerClient(
         IHttpClientFactory clientFactory,
         DockerConfiguration configuration,
+        JsonSerializerOptions serializerOptions,
         ILogger<IDockerClient>? clientLogger) : BaseClient(nameof(IDockerClient), clientFactory), IDockerClient
     {
         private static readonly string[] _supportedEventTypes = ["container", "network"];
 
-        protected override string BaseResourceURI { get; } = $"v{IDockerClient.DockerVersion}";
+        protected override string BaseResourceUri { get; } = $"v{IDockerClient.DockerVersion}";
 
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Get, "containers/json");
+            using var request = CreateRequest(HttpMethod.Get, "containers/json", serializerOptions);
             AddContainerFilters(request, new() { { "label", configuration.ExpectedLabels } });
 
-            var response = await request.ExecuteRequestAsync(
-                JsonSerializerGeneratedContext.Default.DockerResponseCollection, cancellationToken);
-
+            var response = await request.ExecuteRequestAsync<IList<DockerResponse>>(cancellationToken);
             if (response?.Count > 0)
             {
                 // We will only return containers that are at least running. There is no need to return
@@ -43,7 +42,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task<DockerContainer?> GetContainerAsync(string containerId, CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json");
+            using var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json", serializerOptions);
 
             using (clientLogger?.CreateContainerScope(containerId))
             {
@@ -51,9 +50,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 {
                     // Compared to the GetContainersAsync method, this method returns information about
                     // the container regardless of whether it is running.
-                    var container = await request.ExecuteRequestAsync(
-                        JsonSerializerGeneratedContext.Default.InspectedDockerResponse, cancellationToken);
-
+                    var container = await request.ExecuteRequestAsync<InspectedDockerResponse>(cancellationToken);
                     if (container == default)
                     {
                         return default;
@@ -96,7 +93,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async IAsyncEnumerable<DockerContainerEvent> MonitorAsync(
             DateTime since, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            using var request = CreateRequest(HttpMethod.Get, "events").AddQueryParameters(new()
+            using var request = CreateRequest(HttpMethod.Get, "events", serializerOptions).AddQueryParameters(new()
             {
                 { "since", ((DateTimeOffset)since).ToUnixTimeSeconds().ToString() }
             });
@@ -112,8 +109,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             await foreach (var content in request.GetStreamAsync(cancellationToken))
             {
                 using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-                var containerEvent = await JsonSerializer.DeserializeAsync(
-                    contentStream, JsonSerializerGeneratedContext.Default.DockerEventResponse, cancellationToken);
+                var containerEvent = await JsonSerializer.DeserializeAsync<DockerEventResponse>(
+                    contentStream, serializerOptions, cancellationToken);
 
                 if (containerEvent != default && _supportedEventTypes.Contains(containerEvent.Type))
                 {
@@ -134,7 +131,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             }
         }
 
-        private static void AddContainerFilters(HttpRequest request, Dictionary<string, string[]?> containerFilters)
+        private void AddContainerFilters(HttpRequest request, Dictionary<string, string[]?> containerFilters)
         {
             if (containerFilters.Count > 0)
             {
@@ -145,8 +142,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 containerFilters = containerFilters.Where(data => data.Value?.Length > 0).ToDictionary();
                 if (containerFilters.Count > 0)
                 {
-                    var serializedFilters = JsonSerializer.Serialize(
-                        containerFilters!, JsonSerializerGeneratedContext.Default.ContainerFilters);
+                    var serializedFilters = JsonSerializer.Serialize<IDictionary<string, string[]>>(
+                        containerFilters!, serializerOptions);
 
                     request.AddQueryParameters(new() { { "filters", serializedFilters } });
                 }
