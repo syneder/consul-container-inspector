@@ -51,40 +51,45 @@ namespace Consul.Extensions.ContainerInspector
                 }
             }
 
-            await foreach (var inspectorEvent in dockerInspector.InspectAsync(_cancellationToken))
+            try
             {
-                if (inspectorEvent.Type == DockerInspectorEventType.ContainersInspectionCompleted)
+                await foreach (var inspectorEvent in dockerInspector.InspectAsync(_cancellationToken))
                 {
-                    // The ContainersInspectionCompleted inspector event occurs only once, when the
-                    // inspector completes inspecting all running containers. All registered Consul
-                    // services with Docker container identifiers for which the inspector did not
-                    // return information must be unregistered.
-                    foreach (var data in _cache.Where(data => !_containersId.Contains(data.Key)))
+                    if (inspectorEvent.Type == DockerInspectorEventType.ContainersInspectionCompleted)
                     {
-                        using (serviceLogger?.CreateServiceScope(data.Value.Id))
+                        // The ContainersInspectionCompleted inspector event occurs only once, when the
+                        // inspector completes inspecting all running containers. All registered Consul
+                        // services with Docker container identifiers for which the inspector did not
+                        // return information must be unregistered.
+                        foreach (var data in _cache.Where(data => !_containersId.Contains(data.Key)))
                         {
-                            await UnregisterServiceAsync(data.Value);
+                            using (serviceLogger?.CreateServiceScope(data.Value.Id))
+                            {
+                                await UnregisterServiceAsync(data.Value);
+                            }
                         }
+
+                        continue;
                     }
 
-                    continue;
+                    await ProcessDockerInspectorEventAsync(inspectorEvent);
                 }
-
-                await ProcessDockerInspectorEventAsync(inspectorEvent);
             }
-        }
-
-        public override async Task StopAsync(CancellationToken cancellationToken)
-        {
-            foreach (var serviceRegistration in _cache)
+            finally
             {
-                using (serviceLogger?.CreateServiceScope(serviceRegistration.Value.Id))
+                if (_cancellationToken.IsCancellationRequested)
                 {
-                    await UnregisterServiceAsync(serviceRegistration.Value);
+                    _cancellationToken = CancellationToken.None;
+                }
+
+                foreach (var serviceRegistration in _cache)
+                {
+                    using (serviceLogger?.CreateServiceScope(serviceRegistration.Value.Id))
+                    {
+                        await UnregisterServiceAsync(serviceRegistration.Value);
+                    }
                 }
             }
-
-            await base.StopAsync(cancellationToken);
         }
 
         private async Task ProcessDockerInspectorEventAsync(DockerInspectorEvent inspectorEvent)
