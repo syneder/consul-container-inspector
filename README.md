@@ -32,11 +32,13 @@ addresses {
 }
 ```
 
+You can specify a different path to the Consul unix socket. The **container inspector** can read
+the Consul configuration from a shared folder or volume at `/consul/config`.
+
 > [!NOTE]
-> You can specify a different path to the Consul unix socket. The **container inspector** can read
-> the Consul configuration from a shared folder or volume at `/consul/config`. The path from which
-> the Consul configuration will be read can be overridden by specifying the corresponding path in
-> the `CONSUL_CONFIG_PATH` environment variable. Or the path to the Consul unix socket can be
-> overridden by passing the Consul configuration in base64 format in the `CONSUL_CONFIG` environment
-> variable. Or the path to the Unix Consul socket can be overridden using the command line argument
-> `--consul:socket`.
+> The path from which the Consul configuration will be read can be overridden by specifying the
+> corresponding path in the `CONSUL_CONFIG_PATH` environment variable.
+
+Also the path to the Consul unix socket can be overridden by passing the Consul configuration in
+base64 format in the `CONSUL_CONFIG` environment variable. Or the path to the Consul unix socket
+can be overridden using the command line argument `--consul:socket`.
