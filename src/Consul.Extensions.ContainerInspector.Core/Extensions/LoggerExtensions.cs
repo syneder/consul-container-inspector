@@ -1,7 +1,12 @@
-﻿using Consul.Extensions.ContainerInspector.Core.Models;
+﻿using Amazon.Runtime.Internal.Auth;
+using Amazon.Util;
+using Consul.Extensions.ContainerInspector.Core.Internal;
+using Consul.Extensions.ContainerInspector.Core.Models;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
 
 namespace Consul.Extensions.ContainerInspector.Extensions
 {
@@ -10,6 +15,12 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         private static readonly Func<ILogger, HttpMethod, Uri?, IDisposable?> _requestScopeFactory = LoggerMessage.DefineScope<HttpMethod, Uri?>("[ {requestMethod} {requestUri} ]");
         private static readonly Func<ILogger, string, IDisposable?> _containerScopeFactory = LoggerMessage.DefineScope<string>("[ Docker container {containerId} ]");
         private static readonly Func<ILogger, string, IDisposable?> _serviceScopeFactory = LoggerMessage.DefineScope<string>("[ Consul service '{serviceId}' ]");
+
+        [LoggerMessage(1, LogLevel.Trace, "Request headers: [ {serializedHeaders} ]")]
+        internal static partial void RequestContainsHeaders(this ILogger serviceLogger, string serializedHeaders);
+
+        [LoggerMessage(2, LogLevel.Trace, "Response headers: [ {serializedHeaders} ]")]
+        internal static partial void ResponseContainsHeaders(this ILogger serviceLogger, string serializedHeaders);
 
         [LoggerMessage(10, LogLevel.Trace, "The Docker container contains labels: {serializedLabels}")]
         internal static partial void DockerContainerContainsLabels(this ILogger serviceLogger, string serializedLabels);
@@ -104,9 +115,9 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         [LoggerMessage(420, LogLevel.Error, "The same Docker container ID is specified for multiple registered Consul services")]
         public static partial void ServiceContainsDuplicateContainerId(this ILogger serviceLogger);
 
-        internal static IDisposable? CreateRequestScope(this ILogger serviceLogger, HttpRequestMessage request)
+        internal static IDisposable? CreateRequestScope(this ILogger serviceLogger, HttpRequestMessage requestMessage)
         {
-            return _requestScopeFactory(serviceLogger, request.Method, request.RequestUri);
+            return _requestScopeFactory(serviceLogger, requestMessage.Method, requestMessage.RequestUri);
         }
 
         public static IDisposable? CreateContainerScope(this ILogger serviceLogger, string containerId)
@@ -124,24 +135,16 @@ namespace Consul.Extensions.ContainerInspector.Extensions
             return _serviceScopeFactory(serviceLogger, serviceId);
         }
 
-        internal static void RequestCreated(this ILogger serviceLogger, HttpRequestMessage request)
-        {
-            serviceLogger.RequestCreated();
-        }
-
-        internal static void RequestCompleted(this ILogger serviceLogger, HttpResponseMessage response, Stopwatch stopwatch)
-        {
-            serviceLogger.RequestCompleted(stopwatch.ElapsedMilliseconds, response.StatusCode);
-        }
-
-        internal static void RequestScopeCreated(this ILogger serviceLogger, HttpRequestMessage request)
+        internal static void RequestScopeCreated(this ILogger serviceLogger, HttpRequestMessage requestMessage)
         {
             serviceLogger.RequestScopeCreated();
+            serviceLogger.LogHeaders(requestMessage.Headers, RequestContainsHeaders);
         }
 
-        internal static void RequestScopeCompleted(this ILogger serviceLogger, HttpResponseMessage response, Stopwatch stopwatch)
+        internal static void RequestScopeCompleted(this ILogger serviceLogger, HttpResponseMessage responseMessage, Stopwatch stopwatch)
         {
-            serviceLogger.RequestScopeCompleted(stopwatch.ElapsedMilliseconds, response.StatusCode);
+            serviceLogger.RequestScopeCompleted(stopwatch.ElapsedMilliseconds, responseMessage.StatusCode);
+            serviceLogger.LogHeaders(responseMessage.Headers, ResponseContainsHeaders);
         }
 
         internal static void DockerContainerContainsLabels(this ILogger serviceLogger, IDictionary<string, string> containerLabels)
@@ -190,6 +193,60 @@ namespace Consul.Extensions.ContainerInspector.Extensions
             }
 
             serviceLogger.ServiceRegistered(service.Address);
+        }
+
+        private static void LogHeaders(this ILogger serviceLogger, HttpHeaders headers, Action<ILogger, string> action)
+        {
+            if (!serviceLogger.IsEnabled(LogLevel.Trace))
+            {
+                return;
+            }
+
+            var sortedHeaders = BaseClient.GetSortedHeaders(headers, name => name);
+            if (sortedHeaders.Count == 0)
+            {
+                return;
+            }
+
+            var contentBuilder = new StringBuilder();
+            var separator = string.Empty;
+
+            foreach (var header in sortedHeaders)
+            {
+                contentBuilder.Append(separator);
+
+                foreach (var value in header.Value)
+                {
+                    contentBuilder.Append(header.Key).Append(": ");
+
+                    if (header.Key == HeaderKeys.AuthorizationHeader || header.Key == HeaderKeys.XAmzSecurityTokenHeader)
+                    {
+                        AppendAuthorizationHeader(value);
+                    }
+                    else
+                    {
+                        contentBuilder.Append(value);
+                    }
+                }
+
+                separator = ", ";
+            }
+
+            action(serviceLogger, contentBuilder.ToString());
+
+            void AppendAuthorizationHeader(string content)
+            {
+                if (AuthenticationHeaderValue.TryParse(content, out var authorizationHeader))
+                {
+                    contentBuilder.Append(authorizationHeader.Scheme).Append(' ');
+                }
+                else if (content.StartsWith(AWS4Signer.AWS4AlgorithmTag))
+                {
+                    contentBuilder.Append(AWS4Signer.AWS4AlgorithmTag).Append(' ');
+                }
+
+                contentBuilder.Append('*');
+            }
         }
 
         private static string? SerializeContainerNetworks(DockerContainer container)

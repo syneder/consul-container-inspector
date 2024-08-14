@@ -1,9 +1,9 @@
 ﻿using Amazon.Util;
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization.Metadata;
 
 namespace Consul.Extensions.ContainerInspector.Core.Internal
 {
@@ -16,6 +16,23 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
     internal abstract class BaseClient(string name, IHttpClientFactory clientFactory)
     {
         protected virtual string BaseResourceUri { get; } = string.Empty;
+
+        public static IDictionary<string, List<string>> GetSortedHeaders(HttpHeaders headers, Func<string, string> converter)
+        {
+            var sortedHeaders = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var header in headers)
+            {
+                var name = converter(header.Key);
+                if (!sortedHeaders.TryGetValue(name, out var existedValues))
+                {
+                    sortedHeaders.Add(name, existedValues = []);
+                }
+
+                existedValues.AddRange(header.Value.Select(value => value.Trim()));
+            }
+
+            return sortedHeaders;
+        }
 
         /// <summary>
         /// Creates new <see cref="HttpRequest" /> with specified <paramref name="method" />
@@ -154,34 +171,18 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 return AWSSDKUtils.ToHex(contentHash, true);
             }
 
-            public SortedDictionary<string, List<string>> GetSortedHeaders()
+            public IDictionary<string, List<string>> GetSortedHeaders()
             {
-                var sortedHeaders = new SortedDictionary<string, List<string>>();
-                foreach (var requestHeader in message.Headers)
+                var sortedHeaders = BaseClient.GetSortedHeaders(message.Headers, ConvertHeaderName);
+                foreach (var requestHeader in BaseClient.GetSortedHeaders(messageInvoker.DefaultRequestHeaders, ConvertHeaderName))
                 {
-                    AppendHeader(requestHeader.Key.ToLowerInvariant(), requestHeader.Value);
-                }
-
-                foreach (var requestHeader in messageInvoker.DefaultRequestHeaders)
-                {
-                    if (!sortedHeaders.ContainsKey(requestHeader.Key.ToLowerInvariant()))
-                    {
-                        AppendHeader(requestHeader.Key.ToLowerInvariant(), requestHeader.Value);
-                    }
+                    sortedHeaders.TryAdd(requestHeader.Key, requestHeader.Value);
                 }
 
                 return sortedHeaders;
-
-                void AppendHeader(string name, IEnumerable<string> values)
-                {
-                    if (!sortedHeaders.TryGetValue(name, out var existedValues))
-                    {
-                        sortedHeaders.Add(name, existedValues = []);
-                    }
-
-                    existedValues.AddRange(values.Select(value => value.Trim()));
-                }
             }
+
+            private static string ConvertHeaderName(string name) => name.ToLowerInvariant();
         }
     }
 }

@@ -7,16 +7,16 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal.Logging
     internal class LoggingScopeMessageHandler(ILogger serviceLogger) : BaseLoggingMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
+            HttpRequestMessage requestMessage, CancellationToken cancellationToken)
         {
             var stopwatch = Stopwatch.StartNew();
-            using (serviceLogger.CreateRequestScope(request))
+            using (serviceLogger.CreateRequestScope(requestMessage))
             {
-                serviceLogger.RequestScopeCreated(request);
-                var response = await base.SendAsync(request, cancellationToken);
+                serviceLogger.RequestScopeCreated(requestMessage);
+                var responseMessage = await base.SendAsync(requestMessage, cancellationToken);
 
-                serviceLogger.RequestScopeCompleted(response, stopwatch);
-                return response;
+                serviceLogger.RequestScopeCompleted(responseMessage, stopwatch);
+                return responseMessage;
             }
         }
     }
