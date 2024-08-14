@@ -8,7 +8,7 @@
         /// <summary>
         /// Gets or sets the task ARN.
         /// </summary>
-        public required AmazonTaskArn Arn { get; set; }
+        public required AmazonTaskArn TaskArn { get; set; }
 
         /// <summary>
         /// Gets or sets the name of the group to which this task belongs.

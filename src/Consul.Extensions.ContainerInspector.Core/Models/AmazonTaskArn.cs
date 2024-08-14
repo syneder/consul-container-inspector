@@ -1,6 +1,6 @@
 ﻿namespace Consul.Extensions.ContainerInspector.Core.Models
 {
-    public record AmazonTaskArn(string Arn, string ResourceId, string Region, string Cluster)
+    public sealed record AmazonTaskArn(string EncodedArn, string ResourceId, string Region, string Cluster)
     {
         /// <summary>
         /// The name of the Docker container label containing the ARN of the task that manages
@@ -15,6 +15,11 @@
                 return default;
             }
 
+            return ParseTaskArn(arn);
+        }
+
+        public static AmazonTaskArn ParseTaskArn(string arn)
+        {
             // In the current implementation, ARN creation is only allowed for ECS tasks. The ARN
             // has the following format, but not all components of the ARN are required and will be
             // available once created: arn:{partition}:{service}:{region}:{account-id}:ecs/{cluster}/{resourceId}
@@ -25,6 +30,24 @@
             }
 
             throw new TaskArnParseException(arn);
+        }
+
+        public bool Equals(AmazonTaskArn? instance)
+        {
+            if (instance == default)
+            {
+                return default;
+            }
+
+            return instance.EncodedArn == EncodedArn || (
+                instance.ResourceId == ResourceId &&
+                instance.Region == Region &&
+                instance.Cluster == Cluster);
+        }
+
+        public override int GetHashCode()
+        {
+            return ResourceId.GetHashCode() ^ Region.GetHashCode() ^ Cluster.GetHashCode();
         }
     }
 

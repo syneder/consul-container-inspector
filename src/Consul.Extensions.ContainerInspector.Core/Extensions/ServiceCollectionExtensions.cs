@@ -1,7 +1,9 @@
 ﻿using Consul.Extensions.ContainerInspector.Configurations.Models;
 using Consul.Extensions.ContainerInspector.Core;
 using Consul.Extensions.ContainerInspector.Core.Internal;
+using Consul.Extensions.ContainerInspector.Core.Internal.Converters;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using System.Text.Json;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -58,6 +60,18 @@ namespace Microsoft.Extensions.DependencyInjection
             services.TryAddTransient<IConsulClient, ConsulClient>();
             services.TryAddTransient<IDockerClient, DockerClient>();
             services.TryAddTransient<IDockerInspector, DockerInspector>();
+
+            services.AddSingleton(serviceProvider =>
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                    TypeInfoResolver = JsonSerializerGeneratedContext.Default,
+                };
+
+                options.Converters.Add(new AmazonTaskArnConverter());
+                return options;
+            });
 
             return services.ConfigureHttpClients();
         }

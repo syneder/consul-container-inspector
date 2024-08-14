@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using Amazon.Util;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -22,16 +23,33 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         /// </summary>
         /// <param name="resourceUri">A string representing the resource URI to which
         /// <see cref="BaseResourceUri" /> may be appended to create the request URI.</param>
-        protected HttpRequest CreateRequest(HttpMethod method, string resourceUri)
+        protected HttpRequest CreateRequest(
+            HttpMethod method, string resourceUri, JsonSerializerOptions? serializerOptions = default)
         {
             var requestUri = string.Join('/', ((string[])[BaseResourceURI, resourceUri]).Except([string.Empty]));
-            var requestMessageInvoker = clientFactory.CreateClient(name);
-            return new(requestMessageInvoker, new HttpRequestMessage(method, '/' + requestUri.TrimStart('/')));
+            return CreateRequest(new HttpRequestMessage(method, '/' + requestUri.TrimStart('/')), serializerOptions);
         }
 
-        protected class HttpRequest(HttpClient messageInvoker, HttpRequestMessage message) : IDisposable
+        /// <summary>
+        /// Creates new <see cref="HttpRequest" /> with specified <paramref name="method" />
+        /// and <paramref name="requestUri" />.
+        /// </summary>
+        protected virtual HttpRequest CreateRequest(
+            HttpMethod method, Uri requestUri, JsonSerializerOptions? serializerOptions = default)
         {
-            public HttpRequestMessage RequestMessage => message;
+            return CreateRequest(new HttpRequestMessage(method, requestUri), serializerOptions);
+        }
+
+        private HttpRequest CreateRequest(HttpRequestMessage requestMessage, JsonSerializerOptions? serializerOptions)
+        {
+            var requestMessageInvoker = clientFactory.CreateClient(name);
+            return new(requestMessageInvoker, requestMessage, serializerOptions);
+        }
+
+        protected class HttpRequest(
+            HttpClient messageInvoker, HttpRequestMessage message, JsonSerializerOptions? serializerOptions) : IDisposable
+        {
+            public HttpRequestMessage Message => message;
 
             public void Dispose()
             {
@@ -93,6 +111,17 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 return await JsonSerializer.DeserializeAsync(contentStream, typeMetadata, cancellationToken);
             }
 
+            /// <summary>
+            /// Executes the request, reads the contents of the response, and deserializes it into an object.
+            /// </summary>
+            public async Task<T?> ExecuteRequestAsync<T>(CancellationToken cancellationToken)
+            {
+                using var responseMessage = await ExecuteRequestAsync(cancellationToken);
+                using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
+
+                return await JsonSerializer.DeserializeAsync<T>(contentStream, serializerOptions, cancellationToken);
+            }
+
             public async IAsyncEnumerable<string> GetStreamAsync(
                 [EnumeratorCancellation] CancellationToken cancellationToken)
             {
@@ -109,6 +138,57 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     }
 
                     yield return content;
+                }
+            }
+
+            /// <summary>
+            /// Returns the calculated SHA256 hash of the content.
+            /// </summary>
+            /// <remarks>
+            /// If the request content is not specified, return the SHA256 hash of the empty string.
+            /// </remarks>
+            public async Task<string> GetContentHashAsync(CancellationToken cancellationToken)
+            {
+                if (message.Content == default)
+                {
+                    return AWSSDKUtils.ToHex(CryptoUtilFactory.CryptoInstance.ComputeSHA256Hash([]), true);
+                }
+
+                var contentStream = await message.Content.ReadAsStreamAsync(cancellationToken);
+                var contentPosition = contentStream.Position;
+
+                var contentHash = CryptoUtilFactory.CryptoInstance.ComputeSHA256Hash(contentStream);
+                contentStream.Position = contentPosition;
+
+                return AWSSDKUtils.ToHex(contentHash, true);
+            }
+
+            public SortedDictionary<string, List<string>> GetSortedHeaders()
+            {
+                var sortedHeaders = new SortedDictionary<string, List<string>>();
+                foreach (var requestHeader in message.Headers)
+                {
+                    AppendHeader(requestHeader.Key.ToLowerInvariant(), requestHeader.Value);
+                }
+
+                foreach (var requestHeader in messageInvoker.DefaultRequestHeaders)
+                {
+                    if (!sortedHeaders.ContainsKey(requestHeader.Key.ToLowerInvariant()))
+                    {
+                        AppendHeader(requestHeader.Key.ToLowerInvariant(), requestHeader.Value);
+                    }
+                }
+
+                return sortedHeaders;
+
+                void AppendHeader(string name, IEnumerable<string> values)
+                {
+                    if (!sortedHeaders.TryGetValue(name, out var existedValues))
+                    {
+                        sortedHeaders.Add(name, existedValues = []);
+                    }
+
+                    existedValues.AddRange(values.Select(value => value.Trim()));
                 }
             }
         }

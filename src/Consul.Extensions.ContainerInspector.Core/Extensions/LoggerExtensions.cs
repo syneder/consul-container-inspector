@@ -92,6 +92,9 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         [LoggerMessage(302, LogLevel.Warning, "The IP address of the Consul service cannot be determined because Docker container has multiple IP addresses")]
         public static partial void CannotUseMultipleServiceIPAddresses(this ILogger serviceLogger);
 
+        [LoggerMessage(303, LogLevel.Warning, "Amazon ECS tasks cannot be described because credentials could not be obtained")]
+        internal static partial void CannotDescribeECSTasks(this ILogger serviceLogger);
+
         [LoggerMessage(400, LogLevel.Error, "Task ARN '{taskArn}' was detected for multiple Docker containers")]
         internal static partial void DockerInspectorDetectedDuplicateTaskArn(this ILogger serviceLogger, string taskArn);
 
@@ -175,7 +178,7 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         internal static void DockerInspectorDefinedServiceName(this ILogger serviceLogger, AmazonTask describedTask)
         {
             serviceLogger.DockerInspectorDefinedServiceName(
-                describedTask.Group, describedTask.Arn.Cluster, describedTask.Arn.Arn);
+                describedTask.Group, describedTask.TaskArn.Cluster, describedTask.TaskArn.EncodedArn);
         }
 
         public static void ServiceRegistered(this ILogger serviceLogger, ServiceRegistration service)

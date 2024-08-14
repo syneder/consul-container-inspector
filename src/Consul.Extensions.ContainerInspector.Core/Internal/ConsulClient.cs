@@ -29,7 +29,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             using var requestContent = JsonContent.Create(
                 service, JsonSerializerGeneratedContext.Default.ServiceRegistration);
 
-            request.RequestMessage.Content = requestContent;
+            request.Message.Content = requestContent;
             using (await request.ExecuteRequestAsync(cancellationToken)) { }
         }
 

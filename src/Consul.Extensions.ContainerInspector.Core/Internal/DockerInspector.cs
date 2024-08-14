@@ -233,13 +233,13 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                                 continue;
                             }
 
-                            if (arns.Keys.Any(data => data.Arn.Equals(parsedArn.Arn, StringComparison.OrdinalIgnoreCase)))
+                            if (arns.Keys.Any(arn => arn == parsedArn))
                             {
-                                _inspectorLogger?.DockerInspectorDetectedDuplicateTaskArn(parsedArn.Arn);
+                                _inspectorLogger?.DockerInspectorDetectedDuplicateTaskArn(parsedArn.EncodedArn);
                                 continue;
                             }
 
-                            _inspectorLogger?.DockerInspectorDetectedTaskArn(parsedArn.Arn);
+                            _inspectorLogger?.DockerInspectorDetectedTaskArn(parsedArn.EncodedArn);
                             arns.Add(parsedArn, new ContainerDescriptor(container, default));
                         }
                         catch (TaskArnParseException ex)
@@ -249,18 +249,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     }
                 }
 
-                // Before sending a request to AWS, we must ensure that the credentials can be
-                // retrieved. If the AWS client cannot find a way to obtain the credentials, it
-                // will return null. In this case, it is not possible to query AWS to obtain the
-                // ECS service name based on the ARN of the running task.
-                if (await _aws.GetCredentialsAsync(_cancellationToken) == default)
-                {
-                    yield break;
-                }
-
                 foreach (var describedTask in await _aws.DescribeTasksAsync(arns.Keys, _cancellationToken))
                 {
-                    if (arns.TryGetValue(describedTask.Arn, out var containerDescriptor))
+                    if (arns.TryGetValue(describedTask.TaskArn, out var containerDescriptor))
                     {
                         using (_inspectorLogger?.CreateContainerScope(containerDescriptor.Container.Id))
                         {

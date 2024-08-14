@@ -24,7 +24,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task<IEnumerable<DockerContainer>> GetContainersAsync(CancellationToken cancellationToken)
         {
-            var request = CreateRequest(HttpMethod.Get, "containers/json");
+            using var request = CreateRequest(HttpMethod.Get, "containers/json");
             AddContainerFilters(request, new() { { "label", configuration.ExpectedLabels } });
 
             var response = await request.ExecuteRequestAsync(
@@ -43,7 +43,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
         public async Task<DockerContainer?> GetContainerAsync(string containerId, CancellationToken cancellationToken)
         {
-            var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json");
+            using var request = CreateRequest(HttpMethod.Get, $"containers/{containerId}/json");
 
             using (clientLogger?.CreateContainerScope(containerId))
             {
@@ -96,7 +96,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async IAsyncEnumerable<DockerContainerEvent> MonitorAsync(
             DateTime since, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var request = CreateRequest(HttpMethod.Get, "events").AddQueryParameters(new()
+            using var request = CreateRequest(HttpMethod.Get, "events").AddQueryParameters(new()
             {
                 { "since", ((DateTimeOffset)since).ToUnixTimeSeconds().ToString() }
             });
