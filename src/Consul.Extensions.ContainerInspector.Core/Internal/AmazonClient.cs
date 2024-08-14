@@ -142,7 +142,20 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 AWS4Signer.AWS4AlgorithmTag, authorizationHeader);
 
             var describedTasks = await request.ExecuteRequestAsync<AmazonTaskDescriptionResponse>(cancellationToken);
-            return describedTasks?.Tasks ?? [];
+            if (describedTasks == default)
+            {
+                return [];
+            }
+
+            foreach (var describedTask in describedTasks.Tasks)
+            {
+                if (describedTask.Group.StartsWith("service:"))
+                {
+                    describedTask.Group = describedTask.Group["service:".Length..];
+                }
+            }
+
+            return describedTasks.Tasks;
         }
 
         private class CanonicalRequest(string request, string signedHeaders, string service)
