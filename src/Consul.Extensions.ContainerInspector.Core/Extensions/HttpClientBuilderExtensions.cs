@@ -1,6 +1,8 @@
 ﻿using Consul.Extensions.ContainerInspector.Core.Internal.Logging;
+using Consul.Extensions.ContainerInspector.Extensions;
 using Microsoft.Extensions.Logging;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -24,7 +26,20 @@ namespace Microsoft.Extensions.DependencyInjection
                 })
                 .ConfigurePrimaryHttpMessageHandler(serviceProvider =>
                 {
-                    var socketEndpoint = new UnixDomainSocketEndPoint(socketPathProvider(serviceProvider));
+                    var socketPath = socketPathProvider(serviceProvider);
+                    if (!File.Exists(socketPath))
+                    {
+                        var serviceLoggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
+                        if (serviceLoggerFactory != default)
+                        {
+                            var serviceLogger = serviceLoggerFactory.CreateLogger(
+                                "Consul.Extensions.ContainerInspector.Core.HttpClient");
+
+                            serviceLogger.UnixSocketDoesNotExist(socketPath);
+                        }
+                    }
+
+                    var socketEndpoint = new UnixDomainSocketEndPoint(socketPath);
                     return CreateSocketHttpHandler(socketEndpoint);
                 });
         }
@@ -63,6 +78,24 @@ namespace Microsoft.Extensions.DependencyInjection
                     return new NetworkStream(socket, ownsSocket: false);
                 }
             };
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileAttributes
+        {
+            public int st_dev;
+            public int st_ino;
+            public int st_nlink;
+            public int st_mode;
+            public int st_uid;
+            public int st_gid;
+            public int st_rdev;
+            public int st_size;
+            public int st_blksize;
+            public int st_blocks;
+            public int st_atime;
+            public int st_mtime;
+            public int st_ctime;
         }
     }
 }
