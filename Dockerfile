@@ -28,4 +28,6 @@ FROM mcr.microsoft.com/dotnet/runtime:8.0-noble-chiseled
 
 COPY --from=build /app/inspector /
 
+USER root
+
 ENTRYPOINT ["/inspector"]
