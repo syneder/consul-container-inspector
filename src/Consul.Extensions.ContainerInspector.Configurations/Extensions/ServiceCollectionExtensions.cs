@@ -44,18 +44,22 @@ namespace Microsoft.Extensions.DependencyInjection
                 }
             });
 
-            services.TryAddSingleton(GetRequiredOptions<ConsulConfiguration>);
-            services.TryAddSingleton(GetRequiredOptions<ContainerCredentialsConfiguration>);
-            services.TryAddSingleton(GetRequiredOptions<DockerConfiguration>);
-            services.TryAddSingleton(GetRequiredOptions<DockerInspectorConfiguration>);
-            services.TryAddSingleton(GetRequiredOptions<ManagedInstanceRegistration>);
+            services.TryAddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<ConsulConfiguration>>().Value);
+
+            services.TryAddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<ContainerCredentialsConfiguration>>().Value);
+
+            services.TryAddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<DockerConfiguration>>().Value);
+
+            services.TryAddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<DockerInspectorConfiguration>>().Value);
+
+            services.TryAddSingleton(serviceProvider =>
+                serviceProvider.GetRequiredService<IOptions<ManagedInstanceRegistration>>().Value);
 
             return services;
-        }
-
-        private static T GetRequiredOptions<T>(IServiceProvider serviceProvider) where T : class
-        {
-            return serviceProvider.GetRequiredService<IOptions<T>>().Value;
         }
     }
 }
