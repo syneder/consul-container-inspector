@@ -1,0 +1,35 @@
+ame: Docker Image
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Log in to GitHub Container Registry
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Build and push Docker image
+      run: |
+        BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+        BUILD_VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,' | sed -e 's/^v//')
+
+        docker build \
+          --tag ghcr.io/${{ github.repository }}:$BUILD_VERSION \
+          --tag ghcr.io/${{ github.repository }}:latest \
+          --label "org.opencontainers.image.created=$BUILD_DATE" \
+          --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+          --label "org.opencontainers.image.version=$BUILD_VERSION" \
+          --label "org.opencontainers.image.revision=${{ github.sha }}" \
+          --label "org.opencontainers.image.title=Container Inspector" \
+          --label "org.opencontainers.image.licenses=MIT" .
+
+        docker push ghcr.io/${{ github.repository }} --all-tags
