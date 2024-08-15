@@ -118,6 +118,10 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     {
                         continue;
                     }
+                    else if (containerEvent.Action.StartsWith("health_status:"))
+                    {
+                        containerEvent.Action = containerEvent.Action["health_status:".Length..].TrimStart();
+                    }
 
                     clientLogger?.DockerSentEventMessage(content);
 
@@ -162,19 +166,33 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     network.Value.IPAddress?.Length > 0 ? IPAddress.Parse(network.Value.IPAddress!) : default);
             });
 
-            var containerLabels = response switch
-            {
-                DockerResponse dockerResponse => dockerResponse.Labels,
-                InspectedDockerResponse inspectedResponse => inspectedResponse.Configuration.Labels,
-                _ => default
-            };
-
-            return new DockerContainer
+            var container = new DockerContainer
             {
                 Id = response.Id,
-                Labels = containerLabels ?? new Dictionary<string, string>(),
+                Labels = new Dictionary<string, string>(),
                 Networks = containerNetworks.ToDictionary()
             };
+
+            switch (response)
+            {
+                case DockerResponse dockerResponse:
+                    var status = dockerResponse.ParseStatus();
+
+                    container.Labels = dockerResponse.Labels;
+                    container.IsHealthy = status == default || status == "healthy";
+                    container.IsSuspended = status == "paused";
+                    break;
+
+                case InspectedDockerResponse inspectedResponse:
+                    var state = inspectedResponse.State;
+
+                    container.Labels = inspectedResponse.Configuration.Labels;
+                    container.IsHealthy = state.Health == default || state.Health.Status == "healthy";
+                    container.IsSuspended = state.Paused;
+                    break;
+            }
+
+            return container;
         }
     }
 }

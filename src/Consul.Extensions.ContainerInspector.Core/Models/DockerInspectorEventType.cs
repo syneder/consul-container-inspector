@@ -32,6 +32,16 @@
         ContainerDisposed,
 
         /// <summary>
+        /// The Docker inspector detected that a Docker container has become healthy.
+        /// </summary>
+        ContainerHealthy,
+
+        /// <summary>
+        /// The Docker inspector detected that a Docker container has become unhealthy.
+        /// </summary>
+        ContainerUnhealthy,
+
+        /// <summary>
         /// The Docker inspector has completed inspecting existing running Docker containers and
         /// has started monitoring and inspecting Docker events.
         /// </summary>

@@ -82,11 +82,11 @@ namespace Consul.Extensions.ContainerInspector
                     _cancellationToken = CancellationToken.None;
                 }
 
-                foreach (var serviceRegistration in _cache)
+                foreach (var (_, serviceRegistration) in _cache)
                 {
-                    using (serviceLogger?.CreateServiceScope(serviceRegistration.Value.Id))
+                    using (serviceLogger?.CreateServiceScope(serviceRegistration.Id))
                     {
-                        await UnregisterServiceAsync(serviceRegistration.Value);
+                        await UnregisterServiceAsync(serviceRegistration);
                     }
                 }
             }
@@ -119,7 +119,14 @@ namespace Consul.Extensions.ContainerInspector
             async Task<ServiceRegistration?> ProcessDockerInspectorEventAsync()
             {
                 if (inspectorEvent.Type == DockerInspectorEventType.ContainerDisposed ||
-                    inspectorEvent.Type == DockerInspectorEventType.ContainerPaused)
+                    inspectorEvent.Type == DockerInspectorEventType.ContainerPaused ||
+                    inspectorEvent.Type == DockerInspectorEventType.ContainerUnhealthy)
+                {
+                    return default;
+                }
+
+                var container = inspectorEvent.Descriptor.Container;
+                if (container != default && (container.IsSuspended || !container.IsHealthy))
                 {
                     return default;
                 }

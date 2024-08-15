@@ -20,6 +20,16 @@ namespace Consul.Extensions.ContainerInspector.Core.Models
         /// <summary>
         /// Gets the labels of Docker container.
         /// </summary>
-        public required IDictionary<string, string> Labels { get; init; }
+        public required IDictionary<string, string> Labels { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the Docker container is healthy.
+        /// </summary>
+        public bool IsHealthy { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether the Docker container is suspended.
+        /// </summary>
+        public bool IsSuspended { get; set; }
     }
 }

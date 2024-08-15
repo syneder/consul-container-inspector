@@ -20,7 +20,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 { "start", DockerInspectorEventType.ContainerDetected },
                 { "pause", DockerInspectorEventType.ContainerPaused },
                 { "unpause", DockerInspectorEventType.ContainerUnpaused },
-                { "die", DockerInspectorEventType.ContainerDisposed }
+                { "die", DockerInspectorEventType.ContainerDisposed },
+                { "healthy", DockerInspectorEventType.ContainerHealthy },
+                { "unhealthy", DockerInspectorEventType.ContainerUnhealthy },
             };
 
         private static readonly HashSet<string> _supportedActions
@@ -191,7 +193,31 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 }
                 else if ((descriptor ??= cachedDescriptor)?.ServiceName?.Length > 0)
                 {
-                    return descriptor!.CreateInspectorEvent(_inspectorEventTypeMap[containerEvent.EventAction]);
+                    var inspectorEventType = _inspectorEventTypeMap[containerEvent.EventAction];
+
+                    if (cachedDescriptor != default)
+                    {
+                        switch (inspectorEventType)
+                        {
+                            case DockerInspectorEventType.ContainerHealthy:
+                                cachedDescriptor.Container.IsHealthy = true;
+                                break;
+
+                            case DockerInspectorEventType.ContainerPaused:
+                                cachedDescriptor.Container.IsSuspended = true;
+                                break;
+
+                            case DockerInspectorEventType.ContainerUnhealthy:
+                                cachedDescriptor.Container.IsHealthy = default;
+                                break;
+
+                            case DockerInspectorEventType.ContainerUnpaused:
+                                cachedDescriptor.Container.IsSuspended = default;
+                                break;
+                        }
+                    }
+
+                    return descriptor!.CreateInspectorEvent(inspectorEventType);
                 }
 
                 return default;
