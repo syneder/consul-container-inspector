@@ -42,3 +42,26 @@ the Consul configuration from a shared folder or volume at `/consul/config`.
 Also the path to the Consul unix socket can be overridden by passing the Consul configuration in
 base64 format in the `CONSUL_CONFIG` environment variable. Or the path to the Consul unix socket
 can be overridden using the command line argument `--consul:socket`.
+
+> [!NOTE]
+> Just as the path to the Consul unix socket was specified, you can specify the Consul token via
+> the configuration or the command line parameter `--consul:token`. The inspector will look for the
+> token in the `acl:tokens:inspector` or `acl:tokens:agent` section of the configuration.
+
+## Service name determination
+The **container inspector** looks for the `consul.inspector.service.name` label among the container
+labels to determine the service name. If this label is found, the **container inspector** uses its
+value as the service name. The name of this label can be overridden using the
+`DOCKER_CONTAINER_LABELS_SERVICE_NAME` environment variable. If this label is not defined, but the
+**container inspector** finds the `com.amazonaws.ecs.task-arn` label that AWS adds to containers it
+manages, the **container inspector** will try to get information about this container from AWS.
+
+In order for the **container inspector** to successfully retrieve container information from AWS, it
+must first obtain the credentials.
+
+> [!WARNING]
+> This credentials can only be obtained if the **container inspector** is running as an ECS service
+> and has the appropriate IAM role. Otherwise, the **container inspector** will issue warnings.
+
+Once the credentials is obtained, the **container inspector** will send an API request to retrieve
+container information and will use the same service name as the ECS service.
