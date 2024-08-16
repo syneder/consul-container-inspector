@@ -122,12 +122,12 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             /// <summary>
             /// Executes the request, reads the contents of the response, and deserializes it into an object.
             /// </summary>
-            public async Task<T?> ExecuteRequestAsync<T>(CancellationToken cancellationToken)
+            public async Task<T?> ExecuteRequestAsync<T>(CancellationToken cancellationToken) where T : class
             {
                 using var responseMessage = await ExecuteRequestAsync(cancellationToken);
                 using var contentStream = await responseMessage.Content.ReadAsStreamAsync(cancellationToken);
 
-                return await JsonSerializer.DeserializeAsync<T>(contentStream, serializerOptions, cancellationToken);
+                return await DeserializeAsync<T>(contentStream, cancellationToken);
             }
 
             public async IAsyncEnumerable<string> GetStreamAsync(
@@ -147,6 +147,12 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
 
                     yield return content;
                 }
+            }
+
+            public async Task<T?> DeserializeAsync<T>(Stream stream, CancellationToken cancellationToken) where T : class
+            {
+                return await JsonSerializer.DeserializeAsync(
+                    stream, serializerOptions.GetTypeInfo(typeof(T)), cancellationToken) as T;
             }
 
             /// <summary>

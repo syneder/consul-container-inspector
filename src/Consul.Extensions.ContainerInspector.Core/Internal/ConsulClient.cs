@@ -27,7 +27,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
         public async Task RegisterServiceAsync(ServiceRegistration service, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(HttpMethod.Put, "agent/service/register", serializerOptions);
-            using var requestContent = JsonContent.Create(service, options: serializerOptions);
+            using var requestContent = JsonContent.Create(service, serializerOptions.GetTypeInfo(service.GetType()));
 
             request.Message.Content = requestContent;
             using (await request.ExecuteRequestAsync(cancellationToken)) { }

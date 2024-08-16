@@ -109,8 +109,7 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             await foreach (var content in request.GetStreamAsync(cancellationToken))
             {
                 using var contentStream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-                var containerEvent = await JsonSerializer.DeserializeAsync<DockerEventResponse>(
-                    contentStream, serializerOptions, cancellationToken);
+                var containerEvent = await request.DeserializeAsync<DockerEventResponse>(contentStream, cancellationToken);
 
                 if (containerEvent != default && _supportedEventTypes.Contains(containerEvent.Type))
                 {
@@ -146,8 +145,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                 containerFilters = containerFilters.Where(data => data.Value?.Length > 0).ToDictionary();
                 if (containerFilters.Count > 0)
                 {
-                    var serializedFilters = JsonSerializer.Serialize<IDictionary<string, string[]>>(
-                        containerFilters!, serializerOptions);
+                    var serializedFilters = JsonSerializer.Serialize(
+                        containerFilters, serializerOptions.GetTypeInfo(containerFilters.GetType()));
 
                     request.AddQueryParameters(new() { { "filters", serializedFilters } });
                 }

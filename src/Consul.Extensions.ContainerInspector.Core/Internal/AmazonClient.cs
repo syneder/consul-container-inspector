@@ -114,7 +114,8 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             var requestEndpoint = new Uri($"https://ecs.{context.Region}.amazonaws.com");
 
             using var request = CreateRequest(HttpMethod.Post, requestEndpoint, serializerOptions);
-            using var requestContent = JsonContent.Create(context.Data, _contentType, serializerOptions);
+            using var requestContent = JsonContent.Create(
+                context.Data, serializerOptions.GetTypeInfo(context.Data.GetType()), _contentType);
 
             request.Message.Content = requestContent;
             var contentHash = await request.GetContentHashAsync(cancellationToken);
