@@ -140,20 +140,20 @@ external instances.
 
 ### Command line arguments and environment variables
 
-| Environment variable                      | Command line argument | <div style="width: 35%">Description</div>
-| :---------------------------------------- | :-------------------- | :----------
-| `CONSUL_CONFIG_PATH`                      |                       | The path to the file or folder containing Consul configurations
-| `CONSUL_CONFIG`                           |                       | The Consul configurations in base64
-| `DOCKER_SOCKET_PATH`                      | `--docker:socketPath` | The path to Docker unix socket
-| `DOCKER_EXPECTED_CONTAINER_LABELS`        |                       | Expected Docker container labels
-| `DOCKER_CONTAINER_LABELS_SERVICE_NAME`    |                       | The name of the Docker container label containing the service name
-|                                           | `--consul:address`    | The address of a Consul agent or host that is used as the address of a service connected to the `host` Docker network
-|                                           | `--consul:token`      | The Consul token
-|                                           | `--consul:socketPath` | The path to Consul unix socket
-| `INSPECTOR_DEBUG`                         | `--debug=true`        | Enables debug logs
-| `INSPECTOR_VERBOSE`                       | `--verbose=true`      | Enables debug and trace logs
-| `MANAGED_INSTANCE_REGISTRATION_REGUIRED`  |                       | Do not allow launch without instance registration information
-| `MANAGED_INSTANCE_REGISTRATION_FILE_PATH` |                       | The path to instance registration information
+| Environment variable                          | Command line argument | Description
+| --------------------------------------------- | --------------------- | -----------
+| `CONSUL_CONFIG_PATH`                          |                       | The path to the file or folder containing Consul configurations
+| `CONSUL_CONFIG`                               |                       | The Consul configurations in base64
+| `DOCKER_SOCKET_PATH`                          | `--docker:socketPath` | The path to Docker unix socket
+| `DOCKER_EXPECTED_CONTAINER_LABELS`            |                       | Expected Docker container labels
+| `DOCKER_CONTAINER_LABELS_SERVICE_NAME`        |                       | The name of the Docker container label containing the service name
+|                                               | `--consul:address`    | The address of a Consul agent or host that is used as the address of a service connected to the `host` Docker network
+|                                               | `--consul:token`      | The Consul token
+|                                               | `--consul:socketPath` | The path to Consul unix socket
+| `INSPECTOR_DEBUG=true`                        | `--debug=true`        | Enables debug logs
+| `INSPECTOR_VERBOSE=true`                      | `--verbose=true`      | Enables debug and trace logs
+| `MANAGED_INSTANCE_REGISTRATION_REGUIRED=true` |                       | Do not allow launch without instance registration information
+| `MANAGED_INSTANCE_REGISTRATION_FILE_PATH`     |                       | The path to instance registration information
 
 > [!NOTE]
 > Multiple expected Docker container labels must be specified on a single line, separated by the
