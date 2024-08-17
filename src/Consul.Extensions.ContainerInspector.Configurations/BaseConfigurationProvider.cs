@@ -49,7 +49,7 @@ namespace Consul.Extensions.ContainerInspector.Configurations
                     var index = 0;
                     foreach (var data in value.Split(Separator).Select(value => value.Trim()))
                     {
-                        if (TryAdd(ConfigurationPath.Combine(configurationPath, index.ToString()), value))
+                        if (TryAdd(ConfigurationPath.Combine(configurationPath, index.ToString()), data))
                         {
                             index++;
                         }
