@@ -65,3 +65,99 @@ must first obtain the credentials.
 
 Once the credentials is obtained, the **container inspector** will send an API request to retrieve
 container information and will use the same service name as the ECS service.
+
+## Installation using Amazon ECS Console
+To run **container inspector** on Amazon ECS Anywhere hosts using Amazon ECS Console, you must first
+create a task definition. Below is the task definition in JSON format to use the latest version of
+**container inspector**. After creating a task definition, run it as a service in ECS cluster with
+external instances.
+
+> [!WARNING]
+> For  **container inspector** to work properly, it must be running on each instance, but no more
+> than one per instance. To do this, when creating ECS service, select the service scheduler
+> strategy (service type) as DAEMON.
+
+```JSON
+{
+    "family": "container-inspector",
+    "containerDefinitions": [
+        {
+            "name": "container",
+            "image": "ghcr.io/syneder/consul-container-inspector:latest",
+            "mountPoints": [
+                {
+                    "sourceVolume": "docker",
+                    "containerPath": "/var/run/docker.sock"
+                },
+                {
+                    "sourceVolume": "consul",
+                    "containerPath": "/consul/config",
+                    "readOnly": true
+                },
+                {
+                    "sourceVolume": "consul-run",
+                    "containerPath": "/consul/run"
+                },
+                {
+                    "sourceVolume": "ssm",
+                    "containerPath": "/amazon/ssm",
+                    "readOnly": true
+                }
+            ]
+        }
+    ],
+    "networkMode": "bridge",
+    "volumes": [
+        {
+            "name": "docker",
+            "host": {
+                "sourcePath": "/var/run/docker.sock"
+            }
+        },
+        {
+            "name": "consul",
+            "host": {
+                "sourcePath": "/etc/consul.d"
+            }
+        },
+        {
+            "name": "consul-run",
+            "host": {
+                "sourcePath": "/var/run/consul"
+            }
+        },
+        {
+            "name": "ssm",
+            "host": {
+                "sourcePath": "/var/lib/amazon/ssm"
+            }
+        }
+    ],
+    "cpu": "128",
+    "memory": "128"
+}
+```
+
+### Command line arguments and environment variables
+
+| Environment variable                      | Command line argument | <div style="width: 35%">Description</div>
+| :---------------------------------------- | :-------------------- | :----------
+| `CONSUL_CONFIG_PATH`                      |                       | The path to the file or folder containing Consul configurations
+| `CONSUL_CONFIG`                           |                       | The Consul configurations in base64
+| `DOCKER_SOCKET_PATH`                      | `--docker:socketPath` | The path to Docker unix socket
+| `DOCKER_EXPECTED_CONTAINER_LABELS`        |                       | Expected Docker container labels
+| `DOCKER_CONTAINER_LABELS_SERVICE_NAME`    |                       | The name of the Docker container label containing the service name
+|                                           | `--consul:address`    | The address of a Consul agent or host that is used as the address of a service connected to the `host` Docker network
+|                                           | `--consul:token`      | The Consul token
+|                                           | `--consul:socketPath` | The path to Consul unix socket
+| `INSPECTOR_DEBUG`                         | `--debug=true`        | Enables debug logs
+| `INSPECTOR_VERBOSE`                       | `--verbose=true`      | Enables debug and trace logs
+| `MANAGED_INSTANCE_REGISTRATION_REGUIRED`  |                       | Do not allow launch without instance registration information
+| `MANAGED_INSTANCE_REGISTRATION_FILE_PATH` |                       | The path to instance registration information
+
+> [!NOTE]
+> Multiple expected Docker container labels must be specified on a single line, separated by the
+> comma. Labels can be specified either by name only, or by name and value. Example:
+> `vendor=example,consul.inspector.service.name`. In this example, the **container inspector** will
+> only process Docker containers that have both an `consul.inspector.service.name` label and a
+> `vendor` label with a value of `example`.
