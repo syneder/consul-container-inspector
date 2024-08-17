@@ -115,6 +115,9 @@ namespace Consul.Extensions.ContainerInspector.Extensions
         [LoggerMessage(420, LogLevel.Error, "The same Docker container ID is specified for multiple registered Consul services")]
         public static partial void ServiceContainsDuplicateContainerId(this ILogger serviceLogger);
 
+        [LoggerMessage(421, LogLevel.Error, "The service cannot be unregistered because it is not registered")]
+        public static partial void ServiceCannotBeUnregistered(this ILogger serviceLogger);
+
         [LoggerMessage(500, LogLevel.Critical, "Path {socketPath} to unix socket does not exist")]
         public static partial void UnixSocketDoesNotExist(this ILogger serviceLogger, string socketPath);
 

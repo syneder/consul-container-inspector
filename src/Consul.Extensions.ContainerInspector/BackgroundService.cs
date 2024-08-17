@@ -171,8 +171,16 @@ namespace Consul.Extensions.ContainerInspector
         {
             if (containerId == default || _cache.Remove(containerId))
             {
-                await consul.UnregisterServiceAsync(service.Id, _cancellationToken);
-                serviceLogger?.ServiceUnregistered();
+                try
+                {
+                    await consul.UnregisterServiceAsync(service.Id, _cancellationToken);
+
+                    serviceLogger?.ServiceUnregistered();
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound)
+                {
+                    serviceLogger?.ServiceCannotBeUnregistered();
+                }
             }
         }
 
