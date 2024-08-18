@@ -32,16 +32,13 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal.Models
             /// <summary>
             /// Gets or sets the attributes of the object that is emitted the event.
             /// </summary>
-            public required ActorAttributes Attributes { get; set; }
-        }
+            public required IDictionary<string, string> Attributes { get; set; }
 
-        public class ActorAttributes
-        {
             /// <summary>
             /// Gets or sets the Docker container identifier.
             /// </summary>
-            [JsonPropertyName("container")]
-            public string? ContainerId { get; set; }
+            [JsonIgnore]
+            public string ContainerId => Attributes.TryGetValue("container", out var attribute) ? attribute : Id;
         }
     }
 }

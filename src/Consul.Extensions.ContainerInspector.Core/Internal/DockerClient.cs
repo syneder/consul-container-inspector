@@ -62,22 +62,9 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         clientLogger?.DockerContainerContainsLabels(containerLabels);
                     }
 
-                    foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
+                    if (!ContainsExpectedLabels(containerLabels))
                     {
-                        if (!containerLabels.TryGetValue(data[0], out string? value))
-                        {
-                            clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0]);
-                            return default;
-                        }
-
-                        // The expected label can be specified in the format name=value. In such cases, in
-                        // addition to checking whether the label is present in the container, we need to
-                        // check whether the value of the container's label matches the expected value.
-                        if (data.Length == 2 && data[1] != value)
-                        {
-                            clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0], data[1]);
-                            return default;
-                        }
+                        return default;
                     }
 
                     return Convert(container);
@@ -101,7 +88,6 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
             AddContainerFilters(request, new()
             {
                 { "type", _supportedEventTypes },
-                { "label", configuration.ExpectedLabels }
             });
 
             // The Docker API server will hold connections and when events occur, send a JSON string
@@ -122,13 +108,18 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                         containerEvent.Action = containerEvent.Action["health_status:".Length..].TrimStart();
                     }
 
+                    if (containerEvent.Type == "container" && !ContainsExpectedLabels(containerEvent.Actor.Attributes))
+                    {
+                        continue;
+                    }
+
                     clientLogger?.DockerSentEventMessage(content);
 
                     yield return new DockerContainerEvent
                     {
                         EventAction = containerEvent.Action,
                         EventType = containerEvent.Type,
-                        ContainerId = containerEvent.Actor.Attributes.ContainerId ?? containerEvent.Actor.Id,
+                        ContainerId = containerEvent.Actor.ContainerId,
                     };
                 }
             }
@@ -151,6 +142,29 @@ namespace Consul.Extensions.ContainerInspector.Core.Internal
                     request.AddQueryParameters(new() { { "filters", serializedFilters } });
                 }
             }
+        }
+
+        private bool ContainsExpectedLabels(IDictionary<string, string> containerAttributes)
+        {
+            foreach (var data in (configuration.ExpectedLabels ?? []).Select(value => value.Split('=', count: 2)))
+            {
+                if (!containerAttributes.TryGetValue(data[0], out string? value))
+                {
+                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0]);
+                    return default;
+                }
+
+                // The expected label can be specified in the format name=value. In such cases, in
+                // addition to checking whether the label is present in the container, we need to
+                // check whether the value of the container's label matches the expected value.
+                if (data.Length == 2 && data[1] != value)
+                {
+                    clientLogger?.DockerContainerDoesNotContainExpectedLabel(data[0], data[1]);
+                    return default;
+                }
+            }
+
+            return true;
         }
 
         private static DockerContainer Convert(BaseDockerResponse response)
